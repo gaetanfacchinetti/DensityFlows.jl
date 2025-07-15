@@ -16,7 +16,7 @@
 # If not, see <https://www.gnu.org/licenses/>.
 ##################################################################################
 #
-# Contains functions related to the density normalizing flows
+# Contains functions related to the affine coupling flows
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com
@@ -24,18 +24,27 @@
 ##################################################################################
 
 
-module DensityFlows
+############
+# AffineFlow chain structure
 
-import Flux
-import Functors
-import Distributions
-import Optimisers
+struct AffineCouplingFlow{M<:AffineCouplingChain, D<:Distributions.Distribution} <: Flow{M, D}
+    
+    model::M
+    base::D
+end
 
-abstract type FlowInstance end
-abstract type Flow{M<:FlowInstance, D<:Distributions.Distribution} end
-
-include("./AffineCoupling.jl")
-include("./RNVP.jl")
-include("./AffineFlows.jl")
+function AffineCouplingFlow(
+    n_couplings::Int, 
+    ::Type{U} = AffineCouplingBlock,
+    ::Type{T} = Float32,
+    base::Distributions.Distribution = Distributions.MvNormal( zeros(T, axes.d), diagm(ones(T, axes.d)));
+    kws...
+    ) where {T<:AbstractFloat, U<:AffineCouplingInstance}
+    
+    return AffineCouplingFlow(AffineCouplingChain(n_couplings, axes, U; kws...), base)
 
 end
+
+
+backward(flow::AffineCouplingFlow, x::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = backward(flow.model, x, θ)
+forward(flow::AffineCouplingFlow, x::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = forward(flow.model, x, θ)
