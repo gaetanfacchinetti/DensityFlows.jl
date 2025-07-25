@@ -36,7 +36,7 @@ function backward(
     inds_id = (layer.axes.axis_id, ntuple(_ -> :, N-1)...)
     inds_af = (layer.axes.axis_af, ntuple(_ -> :, N-1)...)
     
-    if θ === nothing
+    if θ === nothing || size(θ, 1) == 0
         @views input = x[inds_nn...]
     else
         @views input = vcat(θ, x)[inds_nn...]
@@ -74,7 +74,7 @@ function forward(
     inds_id = (layer.axes.axis_id, ntuple(_ -> :, N-1)...)
     inds_af = (layer.axes.axis_af, ntuple(_ -> :, N-1)...)
     
-    if θ === nothing
+    if θ === nothing || size(θ, 1) == 0
         @views input = z[inds_nn...]
     else
         @views input = vcat(θ, z)[inds_nn...]
@@ -108,7 +108,7 @@ function forward!(
     inds_nn = (layer.axes.axis_nn, ntuple(_ -> :, N-1)...)
     inds_af = (layer.axes.axis_af, ntuple(_ -> :, N-1)...)
     
-    if θ === nothing
+    if θ === nothing || size(θ, 1) == 0
         @views input = z[inds_nn...]
     else
         @views input = vcat(θ, z)[inds_nn...]

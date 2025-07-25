@@ -30,10 +30,14 @@ import Flux
 import Functors
 import Distributions
 import Optimisers
+import Random
+import LinearAlgebra
+import Statistics
 
 abstract type FlowInstance end
 abstract type Flow{M<:FlowInstance, D<:Distributions.Distribution} end
 
+include("./Data.jl")
 include("./AffineCoupling.jl")
 include("./RNVP.jl")
 include("./AffineFlows.jl")
