@@ -117,3 +117,16 @@ testing_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.tes
 
 normalize_input(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x .- x_min) ./ (x_max .- x_min)
 resize_output(y::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x_max .- x_min) .* y .+ x_min
+
+
+normalize_input(x::Nothing, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = nothing
+grad_normalisation(x_min::T, x_max::T) where {T} = 1 ./ (x_max - x_min)
+
+
+@inline function normalize_input!(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
+    x .= (x .- x_min) ./ (x_max .- x_min)
+end
+
+@inline function resize_output!(y::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
+    y .= (x_max .- x_min) .* y .+ x_min
+end

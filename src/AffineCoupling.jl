@@ -332,7 +332,8 @@ function forward!(
     θ::Union{AbstractArray{T, N}, Nothing} = nothing
     ) where {T<:AbstractFloat, N}
 
-    forward!(forward!(block.layer_1, z, θ), z, θ)
+    forward!(block.layer_1, z, θ)
+    forward!(block.layer_2, z, θ)
 end
 
 

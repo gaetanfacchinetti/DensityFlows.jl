@@ -32,7 +32,10 @@ import Distributions
 import Optimisers
 import Random
 import LinearAlgebra
-import Statistics
+#import Statistics
+
+import Distributions: sample, logpdf, pdf
+
 
 abstract type FlowInstance end
 abstract type Flow{M<:FlowInstance, D<:Distributions.Distribution} end

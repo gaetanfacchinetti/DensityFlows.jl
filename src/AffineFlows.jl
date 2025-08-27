@@ -27,7 +27,7 @@
 ############
 # AffineFlow chain structure
 
-export AffineCouplingFlow, predict, train!
+export AffineCouplingFlow, predict, predict!, sample, train!
 
 struct AffineCouplingFlow{M<:AffineCouplingChain, D<:Distributions.Distribution, T<:AbstractFloat, U<:AbstractArray{T}} <: Flow{M, D}
     
@@ -69,7 +69,13 @@ end
 backward(flow::AffineCouplingFlow, y::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = backward(flow.model, y, t)
 forward(flow::AffineCouplingFlow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = forward(flow.model, z, t)
 
-# work with the non renormalized quantities here
+@inline function forward!(flow::AffineCouplingFlow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+    forward!(flow.model, z, t)
+end
+
+
+
+# work with the non renormalised quantities here
 function predict(flow::AffineCouplingFlow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
     
     if θ === nothing
@@ -81,24 +87,83 @@ function predict(flow::AffineCouplingFlow, z::AbstractArray{T}, θ::Union{Abstra
 end
 
 
+# work with the non renormalised quantities here
+function predict!(flow::AffineCouplingFlow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+    
+    if θ === nothing
+        forward!(flow, z, nothing)
+        resize_output!(z, flow.metadata.x_min, flow.metadata.x_max)
+        return
+    end
+
+    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max) 
+
+    # compute the forward pass
+    forward!(flow, z, t) 
+
+    # resize the output to the non normalised scales
+    resize_output!(z, flow.metadata.x_min, flow.metadata.x_max)
+
+end
+
+
+
 function sample(
     flow::AffineCouplingFlow,
     n::Int = 1, 
     θ::Union{AbstractArray{T}, Nothing} = nothing,
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T<:AbstractFloat}
+
+    r = rand(rng, flow.base, n)
+    predict!(flow, r, θ)
     
-    return predict(flow, rand(rng, flow.base, n), θ)
+    return r
+
 end
 
 
-function loss(
+function logpdf(
+    flow::AffineCouplingFlow,
+    x::AbstractArray{T},
+    θ::Union{AbstractArray{T}, Nothing} = nothing,
+    ) where {T<:AbstractFloat}
+
+    y = DensityFlows.normalize_input(x, flow.metadata.x_min, flow.metadata.x_max)
+
+    if θ === nothing
+        z, ln_det_jac = DensityFlows.backward(flow, y)
+    else
+        t = DensityFlows.normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+        z, ln_det_jac = DensityFlows.backward(flow, y, t)
+    end
+
+    ln_grad_norm = log.(DensityFlows.grad_normalisation(flow.metadata.x_min, flow.metadata.x_max))
+
+    return Distributions.logpdf(flow.base, z)  .+ ln_det_jac  .+  sum(ln_grad_norm)
+
+end
+
+
+function pdf(
+    flow::AffineCouplingFlow,
+    x::AbstractArray{T},
+    θ::Union{AbstractArray{T}, Nothing} = nothing,
+    ) where {T<:AbstractFloat}
+
+    return exp(logpdf(flow, x, θ))
+
+end
+
+
+
+@inline function loss(
     z::AbstractArray{T},
     ln_det_jac::AbstractArray{T},
     base::Distributions.Distribution,
     ) where {T<:AbstractFloat}
 
-    return - Statistics.mean(Distributions.logpdf(base, z) .+ ln_det_jac)
+    return - Distributions.mean(Distributions.logpdf(base, z) .+ ln_det_jac)
 end
 
 
@@ -128,6 +193,7 @@ function train!(
             end
 
             Optimisers.update!(optimiser_state, flow.model, grads[1])
+
         end
     
         z, ln_det_jac = backward(flow.model, train_data...)
