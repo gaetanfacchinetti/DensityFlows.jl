@@ -37,6 +37,8 @@ export reverse, forward, backward, forward!
 ############
 # Affine axes structure
 
+
+
 struct AffineCouplingAxes
     
     d::Int # total number of dimensions without the conditions
@@ -121,7 +123,22 @@ Functors.@functor AffineCouplingChain
 ##################################################################################
 # METHODS
 
+@doc raw"""
 
+    AffineCouplingAxes(d, n=0; kws...)
+
+Create axes for AffineCouplingLayer.
+
+# Arguments
+- `d::Int`: dimension of the flow.
+- `n::Int`: number of conditions / parameters (default is 0).
+- `j::Int`: dimension cut (default is `d`÷2).
+- `reverse::Bool`: (default is `false`).
+
+The dimension cut `j` specifies which dimensions are not modified by the layer. 
+If `reverse` is `false` the layer acts as the identity on dimensions (1, `j`).
+If `reverse` is `true`  the layer acts as the identity on dimensions (`j`+1, `d`).
+"""
 function AffineCouplingAxes(
     d::Int,
     n::Int = 0;
@@ -132,8 +149,8 @@ function AffineCouplingAxes(
     # create symmetric blocks by default j = d ÷ 2 
     # with unchanged variables at the bottom
 
-    axis_id = !reverse ? UnitRange(1, j)   : UnitRange(j+1, d)
-    axis_af = !reverse ? UnitRange(j+1, d) : UnitRange(1, j)
+    axis_id = !reverse ? UnitRange(1, j)   : UnitRange(j+1, d) # dimensions on which we apply Identity
+    axis_af = !reverse ? UnitRange(j+1, d) : UnitRange(1, j) # dimensions on which we apply Affine transformation
 
     axis_nn = vcat(UnitRange(1, n), axis_id .+ n)
 
@@ -142,7 +159,14 @@ function AffineCouplingAxes(
 end
 
 
+@doc raw"""
+    
+    reverse(axes)
 
+Swap the dimensions that are left unchanged by the layer.
+See also `AffineCouplingAxes`
+
+"""
 function Base.reverse(axes::AffineCouplingAxes)
     
     # exchange axis_id and axis_af
@@ -205,10 +229,49 @@ function AffineCouplingLayer(
 end
 
 
+@doc raw"""
+    
+    AffineCouplingLayer(axes; kws...)
+    AffineCouplingLayer(d, n=0; kws...)
+      
+Create an AffineCouplingLayer with NN models `s` and `t`.
 
+The layer can be represented as a function `f`
+such that on dimensions where it does not act 
+like the identity it returns
+
+```math
+    f(x) = x * \exp(s) + t \quad {\rm if~forward}
+```
+
+and
+
+```math
+    f^{-1}(z) = \exp(-s) * (z-t) \quad {\rm if~backward} \, .
+```
+
+# Arguments
+- `axes::AffineCouplingAxes`.
+- `d::Int`: dimension of the flow.
+- `n::Int`: number of conditions / parameters (default is 0).
+- `j::Int`: dimension cut (default is `d`÷2).
+- `reverse::Bool`: (default is `false`).
+- `hidden_dim::Int`: number of hidden dimensions in `s` and `t` (default is 32).
+- `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
+- `n_sublayers_s::Int`: number of sublayers in `s` (default is 2).
+
+If `axes` is provided, then `d`, `n`, `j` and `reverse` should not be passed as arguments
+as they would be redondant. 
+
+The dimension cut `j` specifies which dimensions are not modified by the layer. 
+If `reverse` is `false` the layer acts as the identity on dimensions (1, `j`).
+If `reverse` is `true`  the layer acts as the identity on dimensions (`j`+1, `d`).
+
+See also [`AffineCouplingAxes`](@ref).
+"""
 function AffineCouplingLayer(
     d::Int,
-    n::Int = 0,
+    n::Int = 0;
     j::Int = d ÷ 2,
     reverse::Bool = false,
     hidden_dim::Int = 32,
@@ -258,6 +321,24 @@ function AffineCouplingBlock(;
 end
 
 
+
+@doc raw"""
+    
+    AffineCouplingBlock(axes; kws...)
+    
+Create an block of two `AffineCouplinglayer` with opposite axes.
+
+Opposite axes here means that one is set with `reverse` = `true` 
+and the other with `reverse` = `false`.
+
+# Arguments
+- `axes::AffineCouplingAxes`.
+- `hidden_dim::Int`: number of hidden dimensions in `s` and `t` (default is 32).
+- `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
+- `n_sublayers_s::Int`: number of sublayers in `s` (default is 2).
+
+See also [`AffineCouplingAxes`](@ref) and  [`AffineCouplingLayer`](@ref).
+"""
 function AffineCouplingBlock(
     axes::AffineCouplingAxes;
     hidden_dim::Int = 32,
