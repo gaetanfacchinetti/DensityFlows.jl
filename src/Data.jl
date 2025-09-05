@@ -42,6 +42,7 @@ struct DataPartition{T<:AbstractVector{Int}}
     testing::T
 end
 
+
 function DataPartition(
     n::Int, 
     f_training::Real = 0.9, 

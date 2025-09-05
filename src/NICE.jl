@@ -16,7 +16,7 @@
 # If not, see <https://www.gnu.org/licenses/>.
 ##################################################################################
 #
-# Contains functions related to the density normalizing flows
+# Contains functions related to NICE affine couplings
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com
@@ -24,30 +24,20 @@
 ##################################################################################
 
 
-module DensityFlows
 
-import Flux
-import Functors
-import Distributions
-import Optimisers
-import Random
-import LinearAlgebra
-import JLD2
+############
+# NICE layer structure
 
-import Distributions: sample, logpdf, pdf
-import Flux: Dense
-
-export FlowElement, Flow
-
-abstract type FlowElement end
-abstract type Flow{M<:FlowElement, D<:Distributions.Distribution} end
-
-include("./Data.jl")
-include("./AffineStructure.jl")
-include("./RNVP.jl")
-include("./NICE.jl")
-include("./AffineCoupling.jl")
-include("./AffineFlows.jl")
-include("./Loading.jl")
-
+struct NICECouplingLayer{CT<:Flux.Chain} <: AffineCouplingLayer
+    
+    t_net::CT  
+    axes::AffineCouplingAxes
+    
 end
+
+
+Flux.@layer NICECouplingLayer
+Functors.@functor NICECouplingLayer
+
+# Specify that axes are not in the trainable parameters
+Optimisers.trainable(m::NICECouplingLayer) = (;t_net = Optimisers.trainable(m.t_net))

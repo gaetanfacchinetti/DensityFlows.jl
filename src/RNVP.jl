@@ -24,6 +24,31 @@
 ##################################################################################
 
 
+############
+# Real-NVP layer structure
+
+
+struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
+    
+    s_net::T
+    t_net::U
+
+    axes::AffineCouplingAxes
+
+end
+
+Flux.@layer RNVPCouplingLayer
+Functors.@functor RNVPCouplingLayer
+
+# Specify that axes are not in the trainable parameters
+Optimisers.trainable(m::RNVPCouplingLayer) = (;s_net = Optimisers.trainable(m.s_net), t_net = Optimisers.trainable(m.t_net))
+
+
+function Base.show(io::IO, obj::RNVPCouplingLayer)
+    println(io, "s_net : $(sum(length, Flux.trainables(obj.s_net))) parameters: $(obj.s_net.layers)")
+    println(io, "t_net : $(sum(length, Flux.trainables(obj.t_net))) parameters: $(obj.t_net.layers)")
+    println(io, "axes : $(obj.axes)")
+end
 
 
 function backward(
@@ -121,8 +146,17 @@ function forward!(
 
 end
 
-
-function (f::RNVPCouplingLayer)(z::AbstractArray{T, N}, θ::Union{AbstractArray{T, N}, Nothing} = nothing) where {T<:AbstractFloat, N}
+@doc raw""" 
+    
+    RNVPCouplingLayer <: AffineCouplingLayer
+    
+Can be called as a functor `f::RNVPCouplingLayer(z, θ=nothing)` equivalent
+to `forward(f, z, θ)` 
+"""
+function (f::RNVPCouplingLayer)(
+    z::AbstractArray{T, N}, 
+    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    ) where {T<:AbstractFloat, N}
     return forward(f, z, θ)
 end
 

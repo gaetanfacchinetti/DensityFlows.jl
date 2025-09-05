@@ -16,38 +16,54 @@
 # If not, see <https://www.gnu.org/licenses/>.
 ##################################################################################
 #
-# Contains functions related to the density normalizing flows
+# Contains types defining affine couplings
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com
 #
 ##################################################################################
 
+export save, load
 
-module DensityFlows
+struct AffineCouplingAxes
+    
+    d::Int # total number of dimensions without the conditions
+    n::Int # number of conditions
+    
+    axis_id::Vector{Int}
+    axis_af::Vector{Int}
+    axis_nn::Vector{Int}
 
-import Flux
-import Functors
-import Distributions
-import Optimisers
-import Random
-import LinearAlgebra
-import JLD2
-
-import Distributions: sample, logpdf, pdf
-import Flux: Dense
-
-export FlowElement, Flow
-
-abstract type FlowElement end
-abstract type Flow{M<:FlowElement, D<:Distributions.Distribution} end
-
-include("./Data.jl")
-include("./AffineStructure.jl")
-include("./RNVP.jl")
-include("./NICE.jl")
-include("./AffineCoupling.jl")
-include("./AffineFlows.jl")
-include("./Loading.jl")
-
+    reverse::Bool
+    
 end
+
+@doc raw"""
+
+    AffineCouplingElement <: FlowElement
+
+"""
+abstract type AffineCouplingElement <: FlowElement end 
+abstract type AffineCouplingLayer <: AffineCouplingElement end
+
+############
+# Affine block layer structure
+
+struct AffineCouplingBlock{T<:AffineCouplingLayer, U<:AffineCouplingLayer} <: AffineCouplingElement
+    layer_1::T
+    layer_2::U
+end
+
+Flux.@layer AffineCouplingBlock
+Functors.@functor AffineCouplingBlock
+
+############
+# Affine chain structure
+
+struct AffineCouplingChain{T<:Union{Tuple, AbstractVector}} <: AffineCouplingElement
+    layers::T
+end
+
+Flux.@layer AffineCouplingChain
+Functors.@functor AffineCouplingChain
+

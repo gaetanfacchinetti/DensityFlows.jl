@@ -14,4 +14,10 @@ pages = [
     "Public API" => ["AffineCoupling" => "api.md"]
 ]
 
-makedocs(;modules=[DensityFlows], sitename="DensityFlows", pages=pages, meta=Dict(:DocTestSetup => :(using DensityFlows)))
+makedocs(
+    ;modules=[DensityFlows], 
+    sitename="DensityFlows.jl", 
+    pages=pages,
+    meta=Dict(:DocTestSetup => :(using DensityFlows)),
+    format = Documenter.HTML(collapselevel = 1)
+    )

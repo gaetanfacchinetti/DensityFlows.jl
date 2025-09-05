@@ -25,97 +25,9 @@
 
 import Base: reverse
 
-export AffineCouplingInstance, AffineCouplingLayer, RNVPCouplingLayer, NICECouplingLayer
+export AffineCouplingElement, AffineCouplingLayer, RNVPCouplingLayer, NICECouplingLayer
 export AffineCouplingBlock, AffineCouplingChain, AffineCouplingAxes
 export reverse, forward, backward, forward!
-
-
-##################################################################################
-##################################################################################
-# TYPES
-
-############
-# Affine axes structure
-
-
-
-struct AffineCouplingAxes
-    
-    d::Int # total number of dimensions without the conditions
-    n::Int # number of conditions
-    
-    axis_id::Vector{Int}
-    axis_af::Vector{Int}
-    axis_nn::Vector{Int}
-
-    reverse::Bool
-    
-end
-
-abstract type AffineCouplingInstance <: FlowInstance end 
-abstract type AffineCouplingLayer <: AffineCouplingInstance end
-
-############
-# Real-NVP layer structure
-
-struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
-    
-    s_net::T
-    t_net::U
-
-    axes::AffineCouplingAxes
-
-end
-
-Flux.@layer RNVPCouplingLayer
-Functors.@functor RNVPCouplingLayer
-
-# Specify that axes are not in the trainable parameters
-Optimisers.trainable(m::RNVPCouplingLayer) = (;s_net = Optimisers.trainable(m.s_net), t_net = Optimisers.trainable(m.t_net))
-
-
-############
-# NICE layer structure
-
-struct NICECouplingLayer{CT<:Flux.Chain} <: AffineCouplingLayer
-    
-    t_net::CT  
-    axes::AffineCouplingAxes
-    
-end
-
-
-Flux.@layer NICECouplingLayer
-Functors.@functor NICECouplingLayer
-
-# Specify that axes are not in the trainable parameters
-Optimisers.trainable(m::NICECouplingLayer) = (;t_net = Optimisers.trainable(m.t_net))
-
-
-############
-# Affine block layer structure
-
-struct AffineCouplingBlock{T<:AffineCouplingLayer, U<:AffineCouplingLayer} <: AffineCouplingInstance
-    layer_1::T
-    layer_2::U
-end
-
-Flux.@layer AffineCouplingBlock
-Functors.@functor AffineCouplingBlock
-
-
-############
-# Affine chain structure
-
-struct AffineCouplingChain{T<:Union{Tuple, AbstractVector}} <: AffineCouplingInstance
-    layers::T
-end
-
-Flux.@layer AffineCouplingChain
-Functors.@functor AffineCouplingChain
-
-
-
 
 
 
@@ -159,13 +71,13 @@ function AffineCouplingAxes(
 end
 
 
+
 @doc raw"""
     
-    reverse(axes)
+    Base.reverse(axes)
 
 Swap the dimensions that are left unchanged by the layer.
-See also `AffineCouplingAxes`
-
+See also [`AffineCouplingAxes`](@ref).
 """
 function Base.reverse(axes::AffineCouplingAxes)
     
@@ -174,6 +86,7 @@ function Base.reverse(axes::AffineCouplingAxes)
     return AffineCouplingAxes(axes.d, axes.n, axes.axis_af, axes.axis_id, axis_nn, !axes.reverse)
 
 end
+
 
 
 function AffineCouplingLayer(;
@@ -326,7 +239,7 @@ end
     
     AffineCouplingBlock(axes; kws...)
     
-Create an block of two `AffineCouplinglayer` with opposite axes.
+Create an block of two [`AffineCouplingLayer`](@ref) with opposite axes.
 
 Opposite axes here means that one is set with `reverse` = `true` 
 and the other with `reverse` = `false`.
@@ -336,8 +249,6 @@ and the other with `reverse` = `false`.
 - `hidden_dim::Int`: number of hidden dimensions in `s` and `t` (default is 32).
 - `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
 - `n_sublayers_s::Int`: number of sublayers in `s` (default is 2).
-
-See also [`AffineCouplingAxes`](@ref) and  [`AffineCouplingLayer`](@ref).
 """
 function AffineCouplingBlock(
     axes::AffineCouplingAxes;
@@ -366,12 +277,30 @@ function AffineCouplingBlock(
 end
 
 
+@doc raw"""
+    
+    AffineCouplingChain(n_couplings, axes, U; kws...)
+    AffineCouplingChain(xs...)
+    
+Create an chain of [`AffineCouplingLayer`](@ref) or [`AffineCouplingBlock`](@ref).
+
+Can either create a chain of `n_couplings` similar layers or blocks by passing
+`n_couplings` and `axes` or instantiate a chain from pre-existings layers or 
+blocks passed as `xs`.
+
+# Arguments
+- `n_couplings::Int`: number of couplings.
+- `axes::AffineCouplingAxes`.
+- `U:Type`: type of struct in the chain, can be `AffineCouplingLayer` or `AffineCouplingBlock` (default is `AffineCouplingBlock`).
+
+Keywords arguments `kws...` are passed to the constructor of `AffineCouplingLayer` or `AffineCouplingBlock`.
+"""
 function AffineCouplingChain(
     n_couplings::Int, 
     axes::AffineCouplingAxes,
     ::Type{U} = AffineCouplingBlock;
     kws...
-    ) where  {U<:AffineCouplingInstance}
+    ) where  {U<:AffineCouplingElement}
 
     stack = [U(axes; kws...) for _ in 1:n_couplings]
     
@@ -380,6 +309,38 @@ end
 
 
 AffineCouplingChain(xs...) = AffineCouplingChain(xs)
+
+
+##########################################################
+## EVALUATION FUNCTIONS
+
+
+@doc raw"""
+    
+    backward(f, x, θ=nothing)
+
+Return ``f^{-1}(x \,|\, \theta)`` and ``J_{f^{-1}}(x \,| \,\theta)`` where ``\theta`` is an array of parameters.
+
+
+# Arguments
+- `x::AbstractArray{T, N}`: arguments to pass to the flow element.
+- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+"""
+backward
+
+
+@doc raw"""
+    
+    forward(f, x, θ=nothing)
+
+Return ``f(z  \,| \,\theta)`` and ``J_{f}(z \,| \,\theta)`` where ``\theta`` is an array of parameters.
+
+
+# Arguments
+- `z::AbstractArray{T, N}`: arguments to pass to the flow element.
+- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+"""
+forward
 
 
 function backward(
@@ -468,3 +429,5 @@ function forward!(
     end
 
 end
+
+

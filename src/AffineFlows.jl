@@ -48,7 +48,7 @@ function AffineCouplingFlow(
     ::Type{U} = AffineCouplingBlock,
     base::Union{Distributions.Distribution, Nothing} = nothing;
     kws...
-    ) where {T<:AbstractFloat, U<:AffineCouplingInstance}
+    ) where {T<:AbstractFloat, U<:AffineCouplingElement}
     
     # the dimension is given by the size of x_min
     d = size(metadata.x_min, 1)
