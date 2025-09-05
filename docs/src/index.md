@@ -1,10 +1,11 @@
-# Manual
+# Overview
 
+```jldoctest
+julia> AffineCouplingElement <: FlowElement
+true
+```
 
-# API
-
-```@docs
-AffineCouplingAxes
-AffineCouplingLayer
-AffineCouplingBlock
+```jldoctest
+julia> AffineCouplingLayer <: AffineCouplingElement
+true
 ```
