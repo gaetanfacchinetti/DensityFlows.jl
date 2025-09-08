@@ -42,6 +42,14 @@ struct AffineCouplingFlow{M<:AffineCouplingChain, D<:Distributions.Distribution,
 end
 
 
+function Base.show(io::IO, obj::AffineCouplingFlow)
+    println(io, "- model --------------------")
+    show(io, obj.model)
+    println(io, "- base distribution --------")
+    println(io, "• " * string(Base.typename(typeof(obj.base)).wrapper))
+end
+
+
 function AffineCouplingFlow(
     n_couplings::Int,
     metadata::MetaData{<:AbstractArray{T}}, 

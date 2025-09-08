@@ -23,7 +23,10 @@
 #
 ##################################################################################
 
-export save, load
+export AffineCouplingElement, AffineCouplingLayer
+export AffineCouplingAxes
+export AffineCouplingBlock, AffineCouplingChain
+export AffineCouplingTest
 
 struct AffineCouplingAxes
     
@@ -37,6 +40,13 @@ struct AffineCouplingAxes
     reverse::Bool
     
 end
+
+
+function Base.show(io::IO, obj::AffineCouplingAxes)
+    print(io, "d = $(obj.d), n (params) = $(obj.n), unmodified dims = $(obj.axis_id), modified dims = $(obj.axis_af)")
+end
+
+
 
 @doc raw"""
 
@@ -57,6 +67,14 @@ end
 Flux.@layer AffineCouplingBlock
 Functors.@functor AffineCouplingBlock
 
+Base.length(obj::AffineCouplingBlock) = 2
+
+function Base.show(io::IO, obj::AffineCouplingBlock, n::Int = 1)
+    show(io, obj.layer_1, n)
+    show(io, obj.layer_2, n+1)
+end
+
+
 ############
 # Affine chain structure
 
@@ -67,3 +85,21 @@ end
 Flux.@layer AffineCouplingChain
 Functors.@functor AffineCouplingChain
 
+Base.length(obj::AffineCouplingChain) = length(obj.layers)
+
+function Base.show(io::IO, obj::AffineCouplingChain, n::Int = 1)
+    l = 0
+    for layer in obj.layers
+        show(io, layer, n+l)
+        l = l + length(layer)
+    end
+end
+
+
+###########
+# Test structure
+
+struct AffineCouplingTest{T<:Union{Tuple, AbstractVector}, U<:AffineCouplingElement} <: AffineCouplingElement
+    layers::T
+    single::U
+end

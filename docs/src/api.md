@@ -9,6 +9,8 @@ CollapsedDocStrings = true
 
 ## Structure
 ```@docs
+Flow
+FlowElement
 AffineCouplingElement
 RNVPCouplingLayer
 ```
@@ -51,6 +53,7 @@ AffineCouplingBlock
 AffineCouplingChain
 ```
 
+
 ## Evaluation
 
 ```@docs
@@ -58,3 +61,29 @@ backward
 forward
 ```
 
+## Save and loads
+
+```@docs
+save
+load
+```
+
+
+## Data
+
+```@docs
+DataArrays
+MetaData
+DataPartition
+```
+
+```@docs
+data_x_min
+data_x_max
+data_θ_min
+data_θ_max
+normalize_input
+normalize_input!
+resize_output
+resize_output!
+```

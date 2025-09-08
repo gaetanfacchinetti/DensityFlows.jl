@@ -10,8 +10,8 @@ DocMeta.setdocmeta!(
 
 pages = [
     "Overview" => "index.md",
-    "Manual" => "index.md",
-    "Public API" => ["AffineCoupling" => "api.md"]
+    "Manual" => "manual.md",
+    "Public API" => "api.md"
 ]
 
 makedocs(

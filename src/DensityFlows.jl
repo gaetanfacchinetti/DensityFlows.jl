@@ -39,7 +39,14 @@ import Flux: Dense
 
 export FlowElement, Flow
 
+@doc raw""" Building blocks of the flow """ 
 abstract type FlowElement end
+
+# default value of the FlowElement length function
+# should return the number of most basic layers
+Base.length(obj::FlowElement) = 1
+
+@doc raw""" Normalizing flow """
 abstract type Flow{M<:FlowElement, D<:Distributions.Distribution} end
 
 include("./Data.jl")

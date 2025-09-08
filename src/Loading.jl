@@ -23,23 +23,11 @@
 #
 ##################################################################################
 
+export save, load
 
 
 ###########################################################
 ## Utils
-
-
-function add_suffix(filename::String, suffix::String)
-    name_arr = split(filename, ".")
-    name_bulk, name_ext = name_arr[1:end-1], name_arr[end]
-    return *([p * "." for p in name_bulk]...)[1:end-1] * "_" * suffix * "." * name_ext
-end
-
-function remove_extension(filename::String)
-    name_arr = split(filename, ".")
-    return *([p * "." for p in name_arr[1:end-1]]...)[1:end-1]
-end
-
 
 function make_dir(path::AbstractString; erase::Bool = false)
     
@@ -59,12 +47,8 @@ function make_dir(path::AbstractString; erase::Bool = false)
                        
 end
 
-get_type(::Type{T}) where {T<:AffineCouplingBlock} = "AffineCouplingBlock"
-get_type(::Type{T}) where {T<:RNVPCouplingLayer} = "RNVPCouplingLayer"
-get_type(::Type{T}) where {T<:NICECouplingLayer} = "NICECouplingLayer"
 
-get_type(::Type{T}) where {T<:Flux.Chain} = "Chain"
-get_type(::Type{T}) where {T<:AffineCouplingAxes} = "AffineCouplingAxes"
+get_type(::Type{T}) where {T} = string(Base.typename(T).wrapper)
 
 
 ###########################################################
@@ -87,7 +71,7 @@ function load(filename::String, ::Type{AffineCouplingAxes})
         data = JLD2.jldopen(filename * ".jld2")
         return AffineCouplingAxes([data[k] for k in string.(fieldnames(AffineCouplingAxes))]...)
     catch e
-        println("Impossible to load type $T at $filename")
+        println("Impossible to load AffineCouplingAxes at $filename")
         rethrow(e)
     end
 
@@ -139,49 +123,141 @@ end
 
 
 ###########################################################
-## Save / load AffineCouplingLayer, AffineCouplingBlock, AffineCouplingChain model
+## Save / load FlowElements
 
-function save(directory::String, element::T; erase::Bool = false) where {T<:Union{AffineCouplingLayer, AffineCouplingBlock}}
+
+@doc raw"""
+    
+    save(directory, element; kws...)
+
+Recursively save the [`FlowElement`](@ref) `element`'s weights in `directory`.
+
+Setting `erase = true` force deleted any existing directory with the same name.
+"""
+function save(directory::String, element::T; erase::Bool = false) where {T<:FlowElement}
 
     make_dir(directory, erase = erase)
     filename = directory * "/" * get_type(T) * "_"
 
     for field in fieldnames(T)
-        save(filename * string(field), getfield(element, field))
+
+        value = getfield(element, field)
+
+        # if the element is an array of a tuple 
+        # directly save the sub-elements of the array
+        if value isa Union{Tuple, AbstractVector}
+            for (il, sub_element) in enumerate(value)
+                save(filename * string(field) * "_@" * string(il), sub_element)
+            end
+        else
+            save(filename * string(field), value)
+        end
     end
 
 end
 
-function save(directory::String, chain::AffineCouplingChain; erase::Bool = false)
 
-    make_dir(directory, erase = erase)
-    filename = directory * "/AffineCouplingChain_"
+@doc raw""" 
 
-    for (il, layer) in enumerate(chain.layers)
-        save(filename * "layer_" * string(il), layer)
-    end
+    load(directory)
 
-end
+Load any [`FlowElement`](@ref) saved in `directory`.
+"""
+function load(directory::String)
 
+    files = readdir(directory)
+    elements = Any[]
 
-function load(directory::String, ::Type{T}) where {T<:AffineCouplingLayer}
+    @assert length(files) > 0 "Needs to be at least one file / folder in the directory"
     
-    file = readdir(directory)[1]
+    # type of the object to be constructed
+    m_type = eval(Symbol(split(files[1], "_")[1]))
 
-    if file[1:4] == "RNVP"
-        filename = directory * "/RNVPCouplingLayer_"
-        return RNVPCouplingLayer([load(filename * string(field), fieldtype(RNVPCouplingLayer, field)) for field in fieldnames(RNVPCouplingLayer)]...)
-    elseif file[1:4] == "NICE"
-        filename = directory * "/NICECouplingLayer_"
-        return NICECouplingLayer([load(filename * string(field), fieldtype(NICECouplingLayer, field)) for field in fieldnames(NICECouplingLayer)]...)
-    else
-        throw(ArgumentError("Unknown type of AffineCouplingLayer"))
+    # get the correct order of the fields
+    field_order = fieldnames(m_type)
+ 
+    # get all fields to load
+    # Tuple(order_field, composite, order_array, array_of_filenames)
+    # order_array: index of the element of the array read in that file (specified by @#)
+    # order_field: index of the field associated to that file in the fieldname list
+    fields = Dict{Symbol, Tuple{Int, Bool, Vector{Int}, Vector{String}}}()
+
+    # first look to find all fields that need to be loaded
+    for file in files
+
+        # boolean value to know if we open composite element or not
+        composite = true
+        
+        # get the field name by manipulating the filename
+        str_field = file
+        str_field = *([s * "_" for s in split(str_field, "_")[2:end]]...)[1:end-1]
+
+        if length(split(str_field, ".")) > 1
+            str_field = *([s * "." for s in split(str_field, ".")[1:end-1]]...)[1:end-1]
+        end
+
+        # position of the array (if not an array pos = 1 by default)
+        # get the position using the key '@' in the file definition
+        pos = 1
+
+        if str_field[end-1] == '@'
+            pos = tryparse(Int, string(str_field[end]))
+            str_field = str_field[1:end-3]
+        end
+
+        # field that to be constructed in that part of the loop
+        field = Symbol(str_field)
+
+        # check if we reached a jld2 file or not
+        # this could be improved in order to accept
+        # other extension names
+        m_file = file
+        if length(file) > 4 && file[end-4:end] == ".jld2"
+            composite = false
+            m_file = file[1:end-5]
+        end
+
+        # populate the dictionnary
+        if !haskey(fields, field)
+            # initialise with the file values
+            fields[field] = (findfirst(field_order .=== field), composite, Int[pos], String[directory * "/" * m_file])
+        else
+            # complete the order_array and array_of_filenames vectors
+            push!(fields[field][3], pos)
+            push!(fields[field][4], directory * "/" * m_file)
+        end
+
     end
+
+    # prepare a vector containing all loaded instances for every fields
+    elements = Vector{Any}(undef, length(fields))
+
+    # now go over the different fields
+    for (field, data) in fields
+        
+        # get back all properties stored for a given field
+        order_field, composite, order_array, filenames = data
+        n_array = length(order_array)
+
+        # if we do have to load an array
+        if n_array > 1
+
+            temp = Vector{Any}(undef, n_array)
+
+            for k in 1:n_array
+                filename = filenames[k]
+                temp[order_array[k]] = !composite ? load(filename, fieldtype(m_type, field)) : load(filename)
+            end
+    
+        else
+            filename = filenames[1]
+            temp = !composite ? load(filename, fieldtype(m_type, field)) : load(filename)
+        end
+
+        elements[order_field] = temp
+
+    end
+
+    return m_type(elements...)
+
 end
-
-
-function load(directory::String, ::Type{AffineCouplingBlock})
-    filename = directory * "/AffineCouplingBlock_"
-    return AffineCouplingBlock([load(filename * string(field), fieldtype(AffineCouplingBlock, field)) for field in fieldnames(AffineCouplingBlock)]...)
-end
-

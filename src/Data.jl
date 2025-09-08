@@ -24,8 +24,17 @@
 ##################################################################################
 
 export MetaData, DataPartition, DataArrays
+export data_x_min, data_x_max, data_θ_min, data_θ_max
+export normalize_input, normalize_input!
+export resize_output, resize_output!
 
+@doc raw"""
 
+    MetaData(hash, x_min, x_max, θ_min, θ_max)
+
+Metadata containing an identification hash value and the boundaries of the
+data and parameters arrays x and θ.
+"""
 struct MetaData{T<:AbstractVector}
     hash::String
 
@@ -36,13 +45,35 @@ struct MetaData{T<:AbstractVector}
     θ_max::T
 end
 
+@doc raw"""Minimum value of the input data."""
+data_x_min(metadata::MetaData) = metadata.x_min
+
+@doc raw"""Maximum value of the input data."""
+data_x_max(metadata::MetaData) = metadata.x_max
+
+@doc raw"""Minimin value of the input parameters."""
+data_θ_min(metadata::MetaData) = metadata.θ_min
+
+@doc raw"""Maximum value of the input parameters."""
+data_θ_max(metadata::MetaData) = metadata.θ_max
+
+
 struct DataPartition{T<:AbstractVector{Int}}
     training::T
     validation::T
     testing::T
 end
 
+@doc raw"""
+    
+    DataPartition(n, f_training = 0.9, f_validation = 0.1, rng = Random.default_rng())
 
+Random partition of the data.
+
+The data is devided into a fraction `f_training` of training data and 
+a fraction `f_validation` of validation data. If `f_training + f_validation < 1`
+the rest is kept as testing data. 
+"""
 function DataPartition(
     n::Int, 
     f_training::Real = 0.9, 
@@ -75,11 +106,25 @@ struct DataArrays{T, N, A<:AbstractArray{T, N}, B<:AbstractVector{<:Int}, C<:Abs
 
 end
 
+@doc raw"""
 
+    DataArrays(x, θ = nothing, f_training = 0.9, f_validation = 0.1, rng = Random.default_rng())
+
+Normalised and partitioned data to feed the neural network.
+
+`x` must be of size `(d, ...)` where `d` is the number of physical dimensions. `θ` must be of size `(n, ...)` 
+where `n` is the number of parameters and every other array dimensions in place of `...` should match that of `x`. 
+
+!!! warning
+    Data is partitioned along the second axis only. It is thus necessary to make sure that `size(x, 2)` 
+    is large enough by swapping some of the dimensions if necessary.
+
+See also [`DataPartition`](@ref) and [`MetaData`](@ref).
+"""
 function DataArrays(
     x::AbstractArray{T, N}, 
     θ::Union{AbstractArray{T, N}, Nothing} = nothing,
-    f_training::Real = 0.8, 
+    f_training::Real = 0.9, 
     f_validation::Real = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T, N}
@@ -111,23 +156,68 @@ function DataArrays(
 
 end
 
+function Base.show(io::IO, obj::DataArrays)
+    println(io, "Data with size $(size(obj.x)) and parameters / conditions with size $(size(obj.θ)).")
+    println(io, "-> f_training = $(length(obj.partition.training)/size(obj.x, 2)), f_validation = $(length(obj.partition.validation)/size(obj.x, 2)).")
+end
+
 
 training_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.training, ntuple(_ -> :, N-2)...], data.t[:, data.partition.training, ntuple(_ -> :, N-2)...]
 validation_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.validation, ntuple(_ -> :, N-2)...], data.t[:, data.partition.validation, ntuple(_ -> :, N-2)...]
 testing_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.testing, ntuple(_ -> :, N-2)...], data.t[:, data.partition.testing, ntuple(_ -> :, N-2)...]
 
-normalize_input(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x .- x_min) ./ (x_max .- x_min)
-resize_output(y::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x_max .- x_min) .* y .+ x_min
+@doc raw"""
 
+    normalise_input(x, x_min, x_max)
+
+Normalize input between ``[0, 1]``. 
+
+```math
+    y = \frac{x - x_{\rm min}}{x_{\rm max} - x_{\rm min}}
+```
+
+See also [`normalize_input!`](@ref) and [`resize_output`](@ref).
+"""
+normalize_input(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x .- x_min) ./ (x_max .- x_min)
+
+@doc raw"""
+
+    normalise_input(x, x_min, x_max)
+
+Resize the output between ``[x_{\rm min}, x_{\rm max}]``. 
+
+```math
+    x = (x_{\rm max} - x_{\rm min}) y + x_{\rm min}
+```
+
+See also [`resize_output!`](@ref) and [`normalize_input`](@ref).
+"""
+resize_output(y::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x_max .- x_min) .* y .+ x_min
 
 normalize_input(x::Nothing, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = nothing
 grad_normalisation(x_min::T, x_max::T) where {T} = 1 ./ (x_max - x_min)
 
+@doc raw"""
 
+    normalise_input!(x, x_min, x_max)
+
+Normalize input between ``[0, 1]`` in place. 
+
+See also [`normalize_input`](@ref) and [`resize_output!`](@ref).
+"""
 @inline function normalize_input!(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
     x .= (x .- x_min) ./ (x_max .- x_min)
 end
 
+
+@doc raw"""
+
+    normalise_input!(x, x_min, x_max)
+
+Resize the output between ``[x_{\rm min}, x_{\rm max}]`` in place. 
+
+See also [`resize_output`](@ref) and [`normalize_input!`](@ref).
+"""
 @inline function resize_output!(y::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
     y .= (x_max .- x_min) .* y .+ x_min
 end

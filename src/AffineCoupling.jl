@@ -25,8 +25,6 @@
 
 import Base: reverse
 
-export AffineCouplingElement, AffineCouplingLayer, RNVPCouplingLayer, NICECouplingLayer
-export AffineCouplingBlock, AffineCouplingChain, AffineCouplingAxes
 export reverse, forward, backward, forward!
 
 
@@ -61,9 +59,17 @@ function AffineCouplingAxes(
     # create symmetric blocks by default j = d ÷ 2 
     # with unchanged variables at the bottom
 
-    axis_id = !reverse ? UnitRange(1, j)   : UnitRange(j+1, d) # dimensions on which we apply Identity
-    axis_af = !reverse ? UnitRange(j+1, d) : UnitRange(1, j) # dimensions on which we apply Affine transformation
+    # dimensions on which we apply Identity
+    axis_id = !reverse ? UnitRange(1, j)   : UnitRange(j+1, d) 
 
+    # dimensions on which we apply Affine transformation
+    axis_af = !reverse ? UnitRange(j+1, d) : UnitRange(1, j) 
+
+    # dimensions passed to the NN, n first for the parameters
+    # and then in input gives all the unmodified (Identity) dimensions
+    # (because of the triangular nature of the decomposition
+    # the affine transformed dimensions only depend on the 
+    # unmodified ones)
     axis_nn = vcat(UnitRange(1, n), axis_id .+ n)
 
     return AffineCouplingAxes(d, n, axis_id, axis_af, axis_nn, reverse)

@@ -24,6 +24,8 @@
 ##################################################################################
 
 
+export RNVPCouplingLayer
+
 ############
 # Real-NVP layer structure
 
@@ -44,10 +46,14 @@ Functors.@functor RNVPCouplingLayer
 Optimisers.trainable(m::RNVPCouplingLayer) = (;s_net = Optimisers.trainable(m.s_net), t_net = Optimisers.trainable(m.t_net))
 
 
-function Base.show(io::IO, obj::RNVPCouplingLayer)
-    println(io, "s_net : $(sum(length, Flux.trainables(obj.s_net))) parameters: $(obj.s_net.layers)")
-    println(io, "t_net : $(sum(length, Flux.trainables(obj.t_net))) parameters: $(obj.t_net.layers)")
-    println(io, "axes : $(obj.axes)")
+function Base.show(io::IO, obj::RNVPCouplingLayer, n::Int = 1)
+
+    dim_s_net = [size(obj.s_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.layers]...]
+    dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
+
+    println(io, "• layer_$n -> s_net: $(sum(length, Flux.trainables(obj.s_net))) parameters -> $dim_s_net")
+    println(io, "• layer_$n -> t_net: $(sum(length, Flux.trainables(obj.t_net))) parameters -> $dim_t_net")
+    println(io, "• layer_$n -> axes: $(obj.axes)")
 end
 
 
