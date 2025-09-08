@@ -13,7 +13,7 @@ The code is not yet available on the global registry, refer to the section below
 
 ### For developpers
 
-To develop CosmoTools, you can clone this github repository
+To develop DensityFlows, you can clone this github repository
 
 ```bash
 git clone https://github.com/gaetanfacchinetti/DensityFlows.jl.git
@@ -26,7 +26,7 @@ using Pkg; Pkg.develop(path = "<path>/DensityFlows.jl")
 
 ## Quick start guide
 
-A simple flow made of 3 blocks of 2 RNVP-coupling layers can be defined as
+A simple flow made of 3 blocks of 2 RNVP-coupling layers can be created with
 
 ```julia
 using DensityFlows
