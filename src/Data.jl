@@ -112,8 +112,9 @@ end
 
 Normalised and partitioned data to feed the neural network.
 
-`x` must be of size `(d, ...)` where `d` is the number of physical dimensions. `θ` must be of size `(n, ...)` 
-where `n` is the number of parameters and every other array dimensions in place of `...` should match that of `x`. 
+`x` must be of size `(d, ...)` where `d` is the number of physical dimensions. 
+`θ` must be of size `(n, ...)`where `n` is the number of parameters and every 
+other array dimensions in place of `...` should match that of `x`. 
 
 !!! warning
     Data is partitioned along the second axis only. It is thus necessary to make sure that `size(x, 2)` 
@@ -170,7 +171,7 @@ testing_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.tes
 
     normalise_input(x, x_min, x_max)
 
-Normalize input between ``[0, 1]``. 
+Normalize input between ``[-1, 1]``. 
 
 ```math
     y = \frac{x - x_{\rm min}}{x_{\rm max} - x_{\rm min}}
@@ -178,7 +179,11 @@ Normalize input between ``[0, 1]``.
 
 See also [`normalize_input!`](@ref) and [`resize_output`](@ref).
 """
-normalize_input(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x .- x_min) ./ (x_max .- x_min)
+function normalize_input(x::AbstractArray{T, N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T, N} 
+    y = (x .- x_min) ./ (x_max .- x_min)
+    y[vec((x_max .- x_min) .== zero(T)), ntuple(_ -> :, N-1)...] .= zero(T)
+    return y
+end
 
 @doc raw"""
 
@@ -201,12 +206,13 @@ grad_normalisation(x_min::T, x_max::T) where {T} = 1 ./ (x_max - x_min)
 
     normalise_input!(x, x_min, x_max)
 
-Normalize input between ``[0, 1]`` in place. 
+Normalize input between ``[-1, 1]`` in place. 
 
 See also [`normalize_input`](@ref) and [`resize_output!`](@ref).
 """
-@inline function normalize_input!(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
+@inline function normalize_input!(x::AbstractArray{T, N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T, N}
     x .= (x .- x_min) ./ (x_max .- x_min)
+    x[vec((x_max .- x_min) .== zero(T)), ntuple(_ -> :, N-1)...] .= zero(T)
 end
 
 

@@ -46,15 +46,15 @@ abstract type FlowElement end
 # should return the number of most basic layers
 Base.length(obj::FlowElement) = 1
 
-@doc raw""" Normalizing flow """
-abstract type Flow{M<:FlowElement, D<:Distributions.Distribution} end
+
 
 include("./Data.jl")
 include("./AffineStructure.jl")
 include("./RNVP.jl")
 include("./NICE.jl")
 include("./AffineCoupling.jl")
-include("./AffineFlows.jl")
+include("./Chains.jl")
+include("./Flows.jl")
 include("./Loading.jl")
 
 end

@@ -11,7 +11,7 @@ DocMeta.setdocmeta!(
 pages = [
     "Overview" => "index.md",
     "Manual" => "manual.md",
-    "Public API" => "api.md"
+    "Public API" => ["api_overview.md", "api_coupling.md", "api_data.md", "api_flow.md"]
 ]
 
 makedocs(

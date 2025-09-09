@@ -78,15 +78,14 @@ function load(filename::String, ::Type{AffineCouplingAxes})
 end
 
 
-# Create a Dense Flux layer from a symbol to be interpreted as a function when evaluated
-function Flux.Dense((in, out)::Pair{<:Integer, <:Integer}, σ::Symbol; init = Flux.glorot_uniform, bias = true)
-    return Dense(init(out, in), bias, @eval (Flux.$σ))
-end
-
 
 ###########################################################
 ## Save / load simple Chain model
 
+# Create a Dense Flux layer from a symbol to be interpreted as a function when evaluated
+function Flux.Dense((in, out)::Pair{<:Integer, <:Integer}, σ::Symbol; init = Flux.glorot_uniform, bias = true)
+    return Dense(init(out, in), bias, @eval (Flux.$σ))
+end
 
 function save(filename::String, model::Flux.Chain)
 
@@ -143,9 +142,9 @@ function save(directory::String, element::T; erase::Bool = false) where {T<:Flow
 
         value = getfield(element, field)
 
-        # if the element is an array of a tuple 
+        # if the element is a FlowChain 
         # directly save the sub-elements of the array
-        if value isa Union{Tuple, AbstractVector}
+        if element isa FlowChain
             for (il, sub_element) in enumerate(value)
                 save(filename * string(field) * "_@" * string(il), sub_element)
             end

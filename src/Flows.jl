@@ -27,9 +27,15 @@
 ############
 # AffineFlow chain structure
 
-export AffineCouplingFlow, predict, predict!, sample, train!
+export Flow, predict, predict!, sample, train!
+export logpdf, pdf
 
-struct AffineCouplingFlow{M<:AffineCouplingChain, D<:Distributions.Distribution, T<:AbstractFloat, U<:AbstractArray{T}} <: Flow{M, D}
+
+##########
+#Flow
+
+@doc raw""" Normalizing flow """
+struct Flow{M<:FlowChain, D<:Distributions.Distribution, T<:AbstractFloat, U<:AbstractArray{T}}
     
     model::M
     base::D
@@ -42,7 +48,7 @@ struct AffineCouplingFlow{M<:AffineCouplingChain, D<:Distributions.Distribution,
 end
 
 
-function Base.show(io::IO, obj::AffineCouplingFlow)
+function Base.show(io::IO, obj::Flow)
     println(io, "- model --------------------")
     show(io, obj.model)
     println(io, "- base distribution --------")
@@ -50,41 +56,59 @@ function Base.show(io::IO, obj::AffineCouplingFlow)
 end
 
 
-function AffineCouplingFlow(
+function Flow(
+    model::FlowChain, 
+    base::Distributions.Distribution, 
+    data::DataArrays{T}, 
+    train_loss::Vector{T}, 
+    valid_loss::Vector{T}
+    ) where {T}
+   
+    return  Flow(model, base, data.metadata, train_loss, valid_loss)
+
+end
+
+
+Flow(model::FlowChain, base::Distributions.Distribution, data::DataArrays{T}) where {T} = Flow(model, base, data.metadata, T[], T[]) 
+
+
+function Flow(
     n_couplings::Int,
-    metadata::MetaData{<:AbstractArray{T}}, 
+    data::DataArrays{T}, 
     ::Type{U} = AffineCouplingBlock,
     base::Union{Distributions.Distribution, Nothing} = nothing;
     kws...
     ) where {T<:AbstractFloat, U<:AffineCouplingElement}
     
     # the dimension is given by the size of x_min
-    d = size(metadata.x_min, 1)
-    n = size(metadata.θ_min, 1)
+    d = size(data.metadata.x_min, 1)
+    n = size(data.metadata.θ_min, 1)
 
+    # by default build an AffineCouplingFlow
     axes = AffineCouplingAxes(d, n)
-    chain = AffineCouplingChain(n_couplings, axes, U; kws...)
+    chain = FlowChain(n_couplings, axes, U; kws...)
 
     if base === nothing
         base = Distributions.MvNormal(zeros(T, d), LinearAlgebra.diagm(ones(T, d)))
     end
 
-    return AffineCouplingFlow(chain, base, metadata, T[], T[])
+    return Flow(chain, base, data.metadata, T[], T[])
 
 end
 
 
-backward(flow::AffineCouplingFlow, y::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = backward(flow.model, y, t)
-forward(flow::AffineCouplingFlow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = forward(flow.model, z, t)
 
-@inline function forward!(flow::AffineCouplingFlow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+backward(flow::Flow, y::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = backward(flow.model, y, t)
+forward(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = forward(flow.model, z, t)
+
+@inline function forward!(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
     forward!(flow.model, z, t)
 end
 
 
 
 # work with the non renormalised quantities here
-function predict(flow::AffineCouplingFlow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+function predict(flow::Flow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
     
     if θ === nothing
         return resize_output(forward(flow, z, nothing)[1], flow.metadata.x_min, flow.metadata.x_max)
@@ -96,7 +120,7 @@ end
 
 
 # work with the non renormalised quantities here
-function predict!(flow::AffineCouplingFlow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+function predict!(flow::Flow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
     
     if θ === nothing
         forward!(flow, z, nothing)
@@ -117,7 +141,7 @@ end
 
 
 function sample(
-    flow::AffineCouplingFlow,
+    flow::Flow,
     n::Int = 1, 
     θ::Union{AbstractArray{T}, Nothing} = nothing,
     rng::Random.AbstractRNG = Random.default_rng()
@@ -130,31 +154,45 @@ function sample(
 
 end
 
+@doc raw"""
+    
+    logpdf(flow, x, θ = nothing)
 
+Natural logarithm of the probability density function given by the flow.
+
+See also [`pdf`](@ref).
+"""
 function logpdf(
-    flow::AffineCouplingFlow,
+    flow::Flow,
     x::AbstractArray{T},
     θ::Union{AbstractArray{T}, Nothing} = nothing,
     ) where {T<:AbstractFloat}
 
-    y = DensityFlows.normalize_input(x, flow.metadata.x_min, flow.metadata.x_max)
+    y = normalize_input(x, flow.metadata.x_min, flow.metadata.x_max)
 
     if θ === nothing
-        z, ln_det_jac = DensityFlows.backward(flow, y)
+        z, ln_det_jac = backward(flow, y)
     else
-        t = DensityFlows.normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
-        z, ln_det_jac = DensityFlows.backward(flow, y, t)
+        t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+        z, ln_det_jac = backward(flow, y, t)
     end
 
-    ln_grad_norm = log.(DensityFlows.grad_normalisation(flow.metadata.x_min, flow.metadata.x_max))
+    ln_grad_norm = log.(grad_normalisation(flow.metadata.x_min, flow.metadata.x_max))
 
     return Distributions.logpdf(flow.base, z)  .+ ln_det_jac  .+  sum(ln_grad_norm)
 
 end
 
+@doc raw"""
+    
+    pdf(flow, x, θ = nothing)
 
+Probability density function given by the flow.
+
+See also [`logpdf`](@ref).
+"""
 function pdf(
-    flow::AffineCouplingFlow,
+    flow::Flow,
     x::AbstractArray{T},
     θ::Union{AbstractArray{T}, Nothing} = nothing,
     ) where {T<:AbstractFloat}
@@ -176,13 +214,14 @@ end
 
 
 function train!(
-    flow::AffineCouplingFlow,
+    flow::Flow,
     data::DataArrays, 
     optimiser_state::NamedTuple; 
     epochs::Int=100,
     batchsize=64,
     shuffle=true,
-    verbose::Bool=true
+    verbose::Bool=true,
+    debug::Bool=false
 )
     train_data = training_data(data)
     valid_data = validation_data(data)
@@ -196,7 +235,15 @@ function train!(
             grads = Flux.gradient(flow.model) do m
             
                 z, ln_det_jac = backward(m, y_batch, t_batch)
-                return loss(z, ln_det_jac, flow.base)
+                l = loss(z, ln_det_jac, flow.base)
+
+                # debugging if loss gets NaN
+                if debug && ( (l != l) || isinf(l))
+                    println("$l, $ln_det_jac, $z")
+                    throw(ArgumentError(""))
+                end
+
+                return l 
                                 
             end
 
@@ -208,12 +255,26 @@ function train!(
         train_loss = loss(z, ln_det_jac, flow.base)
         push!(flow.train_loss, train_loss)
 
+        if debug && ((train_loss != train_loss) || isinf(train_loss))
+            println("Problem with train loss $train_loss")
+            return z, ln_det_jac
+        end
+
         z, ln_det_jac = backward(flow.model, valid_data...)
         valid_loss = loss(z, ln_det_jac, flow.base)
         push!(flow.valid_loss, valid_loss)
 
+        if debug && ((valid_loss != valid_loss) || isinf(valid_loss))
+            println("Problem with valid loss $valid_loss")
+            return z, ln_det_jac
+        end
+
         verbose && println("epoch: $(length(flow.train_loss)) | train_loss = $train_loss, valid_loss = $valid_loss")
         
+    end
+
+    if debug
+        return nothing, nothing
     end
 
 end
