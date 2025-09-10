@@ -16,7 +16,7 @@
 # If not, see <https://www.gnu.org/licenses/>.
 ##################################################################################
 #
-# Contains functions related to the affine coupling flows
+# Contains functions related to the chains of flows
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com
@@ -33,8 +33,10 @@ end
 
 FlowChain(xs...) = FlowChain(xs)
 
-Flux.@layer FlowChain
-Functors.@functor FlowChain
+#Flux.@layer FlowChain
+#Functors.@functor FlowChain
+
+@flowify FlowChain
 
 Base.length(obj::FlowChain) = length(obj.layers)
 

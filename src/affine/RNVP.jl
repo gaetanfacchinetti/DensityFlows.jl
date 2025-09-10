@@ -39,12 +39,13 @@ struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
 
 end
 
-Flux.@layer RNVPCouplingLayer
-Functors.@functor RNVPCouplingLayer
+#Flux.@layer RNVPCouplingLayer
+#Functors.@functor RNVPCouplingLayer
 
 # Specify that axes are not in the trainable parameters
-Optimisers.trainable(m::RNVPCouplingLayer) = (;s_net = Optimisers.trainable(m.s_net), t_net = Optimisers.trainable(m.t_net))
+#Optimisers.trainable(m::RNVPCouplingLayer) = (;s_net = Optimisers.trainable(m.s_net), t_net = Optimisers.trainable(m.t_net))
 
+@flowify RNVPCouplingLayer [:s_net, :t_net]
 
 function Base.show(io::IO, obj::RNVPCouplingLayer, n::Int = 1)
 

@@ -47,12 +47,42 @@ abstract type FlowElement end
 Base.length(obj::FlowElement) = 1
 
 
+macro flowtrainable(T, fields)
+    return esc(quote
+        # Specify exactly what are the trainable parameters
+        function Optimisers.trainable(m::$T)
+            return (; (field => Optimisers.trainable(getfield(m, field)) for field in $fields)...)
+        end
+    end)
+end
+
+macro flowlayer(T)
+    return esc(quote
+        Flux.@layer $T
+        Functors.@functor $T
+    end)
+end
+
+macro flowify(T)
+    return esc(quote
+        @flowlayer $T
+        @flowtrainable $T fieldnames($T)
+    end)
+end
+
+macro flowify(T, fields)
+    return esc(quote
+        @flowlayer $T
+        @flowtrainable $T $fields
+    end)
+end
+
 
 include("./Data.jl")
-include("./AffineStructure.jl")
-include("./RNVP.jl")
-include("./NICE.jl")
-include("./AffineCoupling.jl")
+include("./affine/AffineStructure.jl")
+include("./affine/RNVP.jl")
+include("./affine/NICE.jl")
+include("./affine/AffineCoupling.jl")
 include("./Chains.jl")
 include("./Flows.jl")
 include("./Loading.jl")
