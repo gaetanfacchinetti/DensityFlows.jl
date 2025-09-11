@@ -28,16 +28,11 @@ export NICECouplingLayer
 ############
 # NICE layer structure
 
-struct NICECouplingLayer{CT<:Flux.Chain} <: AffineCouplingLayer
+struct NICECouplingLayer{T<:Flux.Chain} <: AffineCouplingLayer
     
-    t_net::CT  
+    t_net::T  
     axes::AffineCouplingAxes
     
 end
 
-
-Flux.@layer NICECouplingLayer
-Functors.@functor NICECouplingLayer
-
-# Specify that axes are not in the trainable parameters
-Optimisers.trainable(m::NICECouplingLayer) = (;t_net = Optimisers.trainable(m.t_net))
+@auto_flow NICECouplingLayer [:t_net]

@@ -35,14 +35,16 @@ export reverse, forward, backward, forward!
 
 @doc raw"""
 
-    AffineCouplingAxes(d, n=0; kws...)
-
+    AffineCouplingAxes(d, mask; kws )
+    AffineCouplingAxes(d, j=d÷2; kws...)
+    
 Create axes for AffineCouplingLayer.
 
 # Arguments
 - `d::Int`: dimension of the flow.
-- `n::Int`: number of conditions / parameters (default is 0).
 - `j::Int`: dimension cut (default is `d`÷2).
+- `mask::AbstractVector{Int}`: dimensions that are affected by the coupling.
+- `n::Int`: number of conditions / parameters (default is 0).
 - `reverse::Bool`: (default is `false`).
 
 The dimension cut `j` specifies which dimensions are not modified by the layer. 
@@ -51,19 +53,17 @@ If `reverse` is `true`  the layer acts as the identity on dimensions (`j`+1, `d`
 """
 function AffineCouplingAxes(
     d::Int,
-    n::Int = 0;
-    j::Int = d ÷ 2,
-    reverse::Bool = false
+    mask::AbstractVector{Int};
+    n::Int = 0
     )
 
-    # create symmetric blocks by default j = d ÷ 2 
-    # with unchanged variables at the bottom
+    @assert maximum(mask) <= d "The mask cannot contain values higher than the dimension"
 
     # dimensions on which we apply Identity
-    axis_id = !reverse ? UnitRange(1, j)   : UnitRange(j+1, d) 
+    axis_id = findall(x -> !(x in mask), range(1, d))
 
     # dimensions on which we apply Affine transformation
-    axis_af = !reverse ? UnitRange(j+1, d) : UnitRange(1, j) 
+    axis_af = mask
 
     # dimensions passed to the NN, n first for the parameters
     # and then in input gives all the unmodified (Identity) dimensions
@@ -72,7 +72,19 @@ function AffineCouplingAxes(
     # unmodified ones)
     axis_nn = vcat(UnitRange(1, n), axis_id .+ n)
 
-    return AffineCouplingAxes(d, n, axis_id, axis_af, axis_nn, reverse)
+    return AffineCouplingAxes(d, n, axis_id, axis_af, axis_nn)
+
+end
+
+function AffineCouplingAxes(
+    d::Int,
+    j::Int = d ÷ 2;
+    n::Int = 0,
+    reverse::Bool = false
+    )
+
+    mask = !reverse ? UnitRange(j+1, d) : UnitRange(1, j) 
+    return AffineCouplingAxes(d, mask, n=n)
 
 end
 
@@ -89,7 +101,7 @@ function Base.reverse(axes::AffineCouplingAxes)
     
     # exchange axis_id and axis_af
     axis_nn = vcat(UnitRange(1, axes.n), axes.axis_af .+ axes.n)
-    return AffineCouplingAxes(axes.d, axes.n, axes.axis_af, axes.axis_id, axis_nn, !axes.reverse)
+    return AffineCouplingAxes(axes.d, axes.n, axes.axis_af, axes.axis_id, axis_nn)
 
 end
 
@@ -192,12 +204,11 @@ function AffineCouplingLayer(
     d::Int,
     n::Int = 0;
     j::Int = d ÷ 2,
-    reverse::Bool = false,
     hidden_dim::Int = 32,
     n_sublayers_t::Int = 2, 
     n_sublayers_s::Int = 0)
 
-    axes = AffineCouplingAxes(d, n, j = j, reverse = reverse)
+    axes = AffineCouplingAxes(d, j, n=n)
     
     return AffineCouplingLayer(
         axes, 
@@ -289,38 +300,11 @@ end
 ## EVALUATION FUNCTIONS
 
 
-@doc raw"""
-    
-    backward(f, x, θ=nothing)
-
-Return ``f^{-1}(x \,|\, \theta)`` and ``J_{f^{-1}}(x \,| \,\theta)`` where ``\theta`` is an array of parameters.
-
-
-# Arguments
-- `x::AbstractArray{T, N}`: arguments to pass to the flow element.
-- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
-"""
-backward
-
-
-@doc raw"""
-    
-    forward(f, x, θ=nothing)
-
-Return ``f(z  \,| \,\theta)`` and ``J_{f}(z \,| \,\theta)`` where ``\theta`` is an array of parameters.
-
-
-# Arguments
-- `z::AbstractArray{T, N}`: arguments to pass to the flow element.
-- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
-"""
-forward
-
 
 function backward(
     block::AffineCouplingBlock, 
     x::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(x)
     ) where {T<:AbstractFloat, N}
 
     y, ln_det_jac_2 = backward(block.layer_2, x, θ)
@@ -341,6 +325,7 @@ function forward(
  
     return x, (ln_det_jac_1 .+ ln_det_jac_2)
 end
+
 
 function forward!(
     block::AffineCouplingBlock, 

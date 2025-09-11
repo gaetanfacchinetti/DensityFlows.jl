@@ -78,6 +78,34 @@ function load(filename::String, ::Type{AffineCouplingAxes})
 end
 
 
+#########################################################
+## Save / load arrays
+
+function DensityFlows.save(filename::String, array::AbstractArray)
+    
+    try
+        JLD2.jldsave(filename * ".jld2"; array)
+    catch e
+        println("Impossible to save the normalization")
+        rethrow(e)
+    end
+
+end
+
+
+function load(filename::String, ::Type{AbstractArray})
+
+    try
+        data = JLD2.jldopen(filename * ".jld2")
+        return data["array"]
+    catch e
+        println("Impossible to load NormalizationLayer at $filename")
+        rethrow(e)
+    end
+
+end
+
+
 
 ###########################################################
 ## Save / load simple Chain model

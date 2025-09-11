@@ -36,8 +36,6 @@ struct AffineCouplingAxes
     axis_id::Vector{Int}
     axis_af::Vector{Int}
     axis_nn::Vector{Int}
-
-    reverse::Bool
     
 end
 
@@ -69,30 +67,9 @@ Functors.@functor AffineCouplingBlock
 
 Base.length(obj::AffineCouplingBlock) = 2
 
-function Base.show(io::IO, obj::AffineCouplingBlock, n::Int = 1)
-    show(io, obj.layer_1, n)
-    show(io, obj.layer_2, n+1)
-end
-
-
-############
-# Affine chain structure
-
-struct AffineCouplingChain{T<:Union{Tuple, AbstractVector}} <: AffineCouplingElement
-    layers::T
-end
-
-Flux.@layer AffineCouplingChain
-Functors.@functor AffineCouplingChain
-
-Base.length(obj::AffineCouplingChain) = length(obj.layers)
-
-function Base.show(io::IO, obj::AffineCouplingChain, n::Int = 1)
-    l = 0
-    for layer in obj.layers
-        show(io, layer, n+l)
-        l = l + length(layer)
-    end
+function Base.show(io::IO, obj::AffineCouplingBlock)
+    show(io, obj.layer_1)
+    show(io, obj.layer_2)
 end
 
 

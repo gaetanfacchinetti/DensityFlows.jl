@@ -33,51 +33,23 @@ import Optimisers
 import Random
 import LinearAlgebra
 import JLD2
+import ChainRulesCore
 
+import ChainRulesCore: rrule
 import Distributions: sample, logpdf, pdf
 import Flux: Dense
 
-export FlowElement, Flow
+export FlowElement
 
 @doc raw""" Building blocks of the flow """ 
 abstract type FlowElement end
 
-# default value of the FlowElement length function
-# should return the number of most basic layers
-Base.length(obj::FlowElement) = 1
+dflt_θ(::Type{T}, n::Int) where {T} = zeros(T, (0, n))
+dflt_θ(::Type{T}, dims::Tuple{Vararg{T}}) where {T} = zeros(T, (0, dims...))
+dflt_θ(x::AbstractArray{T, N}) where {T, N} = zeros(T, (0, size(x)[2:N]...))
 
 
-macro flowtrainable(T, fields)
-    return esc(quote
-        # Specify exactly what are the trainable parameters
-        function Optimisers.trainable(m::$T)
-            return (; (field => Optimisers.trainable(getfield(m, field)) for field in $fields)...)
-        end
-    end)
-end
-
-macro flowlayer(T)
-    return esc(quote
-        Flux.@layer $T
-        Functors.@functor $T
-    end)
-end
-
-macro flowify(T)
-    return esc(quote
-        @flowlayer $T
-        @flowtrainable $T fieldnames($T)
-    end)
-end
-
-macro flowify(T, fields)
-    return esc(quote
-        @flowlayer $T
-        @flowtrainable $T $fields
-    end)
-end
-
-
+include("./Macros.jl")
 include("./Data.jl")
 include("./affine/AffineStructure.jl")
 include("./affine/RNVP.jl")

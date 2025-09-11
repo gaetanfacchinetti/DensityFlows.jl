@@ -35,7 +35,7 @@ export logpdf, pdf
 #Flow
 
 @doc raw""" Normalizing flow """
-struct Flow{M<:FlowChain, D<:Distributions.Distribution, T<:AbstractFloat, U<:AbstractArray{T}}
+struct Flow{T<:AbstractFloat, M<:FlowChain, D<:Distributions.Distribution, U<:AbstractArray{T}}
     
     model::M
     base::D
@@ -46,6 +46,8 @@ struct Flow{M<:FlowChain, D<:Distributions.Distribution, T<:AbstractFloat, U<:Ab
     valid_loss::Vector{T}
 
 end
+
+get_type(flow::Flow{T}) where {T} = T
 
 
 function Base.show(io::IO, obj::Flow)
@@ -108,19 +110,23 @@ end
 
 
 # work with the non renormalised quantities here
-function predict(flow::Flow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+function predict(
+    flow::Flow, 
+    z::AbstractArray{T}, 
+    θ::AbstractArray{T} = dflt_θ(z)
+    ) where {T<:AbstractFloat}
     
-    if θ === nothing
-        return resize_output(forward(flow, z, nothing)[1], flow.metadata.x_min, flow.metadata.x_max)
-    end
-
     t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
     return resize_output(forward(flow, z, t)[1], flow.metadata.x_min, flow.metadata.x_max)
 end
 
 
 # work with the non renormalised quantities here
-function predict!(flow::Flow, z::AbstractArray{T}, θ::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+function predict!(
+    flow::Flow, 
+    z::AbstractArray{T}, 
+    θ::AbstractArray{T} = dflt_θ(z)
+    ) where {T<:AbstractFloat}
     
     if θ === nothing
         forward!(flow, z, nothing)
@@ -142,8 +148,8 @@ end
 
 function sample(
     flow::Flow,
-    n::Int = 1, 
-    θ::Union{AbstractArray{T}, Nothing} = nothing,
+    n::Int = 1,
+    θ::AbstractArray{T} = dflt_θ(get_type(flow), n),
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T<:AbstractFloat}
 
@@ -165,18 +171,14 @@ See also [`pdf`](@ref).
 function logpdf(
     flow::Flow,
     x::AbstractArray{T},
-    θ::Union{AbstractArray{T}, Nothing} = nothing,
+    θ::AbstractArray{T} = dflt_θ(x)
     ) where {T<:AbstractFloat}
 
     y = normalize_input(x, flow.metadata.x_min, flow.metadata.x_max)
 
-    if θ === nothing
-        z, ln_det_jac = backward(flow, y)
-    else
-        t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
-        z, ln_det_jac = backward(flow, y, t)
-    end
-
+    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    z, ln_det_jac = backward(flow, y, t)
+    
     ln_grad_norm = log.(grad_normalisation(flow.metadata.x_min, flow.metadata.x_max))
 
     return Distributions.logpdf(flow.base, z)  .+ ln_det_jac  .+  sum(ln_grad_norm)
@@ -194,7 +196,7 @@ See also [`logpdf`](@ref).
 function pdf(
     flow::Flow,
     x::AbstractArray{T},
-    θ::Union{AbstractArray{T}, Nothing} = nothing,
+    θ::AbstractArray{T} = dflt_θ(x)
     ) where {T<:AbstractFloat}
 
     return exp(logpdf(flow, x, θ))

@@ -24,8 +24,54 @@
 ##################################################################################
 
 
-export FlowChain
+######################## 
+## Documentation
 
+@doc raw"""
+    
+    backward(f, x, θ=nothing)
+
+Return ``f^{-1}(x \,|\, \theta)`` and ``J_{f^{-1}}(x \,| \,\theta)`` where ``\theta`` is an array of parameters.
+
+
+# Arguments
+- `x::AbstractArray{T, N}`: arguments to pass to the flow element.
+- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+"""
+backward
+
+
+@doc raw"""
+    
+    forward(f, z, θ=nothing)
+
+Return ``f(z  \,| \,\theta)`` and ``J_{f}(z \,| \,\theta)`` where ``\theta`` is an array of parameters.
+
+
+# Arguments
+- `z::AbstractArray{T, N}`: arguments to pass to the flow element.
+- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+"""
+forward
+
+
+@doc raw"""
+    
+    forward!(f, z, θ=nothing)
+
+Replace `z` by ``f(z  \,| \,\theta)`` where ``\theta`` is an array of parameters.
+
+
+# Arguments
+- `z::AbstractArray{T, N}`: arguments to pass to the flow element.
+- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+"""
+forward!
+
+
+######################## 
+
+export FlowChain
 
 struct FlowChain{T<:Union{Tuple, AbstractVector}} <: FlowElement
     layers::T
@@ -33,18 +79,11 @@ end
 
 FlowChain(xs...) = FlowChain(xs)
 
-#Flux.@layer FlowChain
-#Functors.@functor FlowChain
+@auto_flow FlowChain
 
-@flowify FlowChain
-
-Base.length(obj::FlowChain) = length(obj.layers)
-
-function Base.show(io::IO, obj::FlowChain, n::Int = 1)
-    l = 0
+function Base.show(io::IO, obj::FlowChain)
     for layer in obj.layers
-        show(io, layer, n+l)
-        l = l + length(layer)
+        show(io, layer)
     end
 end
 
@@ -85,7 +124,7 @@ end
 function backward(
     chain::FlowChain, 
     x::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(x)
     ) where {T<:AbstractFloat, N}
 
     n = length(chain.layers)
@@ -104,7 +143,7 @@ end
 function forward(
     chain::FlowChain, 
     z::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(z)
     ) where {T<:AbstractFloat, N}
 
     n = length(chain.layers)
@@ -123,7 +162,7 @@ end
 function forward!(
     chain::FlowChain, 
     z::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(z)
     )  where {T<:AbstractFloat, N}
 
     for i ∈ eachindex(chain.layers)
@@ -131,3 +170,7 @@ function forward!(
     end
 
 end
+
+
+
+

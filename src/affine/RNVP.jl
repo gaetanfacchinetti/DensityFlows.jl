@@ -39,131 +39,142 @@ struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
 
 end
 
-#Flux.@layer RNVPCouplingLayer
-#Functors.@functor RNVPCouplingLayer
+@auto_flow RNVPCouplingLayer [:s_net, :t_net]
+@auto_functor RNVPCouplingLayer
 
-# Specify that axes are not in the trainable parameters
-#Optimisers.trainable(m::RNVPCouplingLayer) = (;s_net = Optimisers.trainable(m.s_net), t_net = Optimisers.trainable(m.t_net))
-
-@flowify RNVPCouplingLayer [:s_net, :t_net]
-
-function Base.show(io::IO, obj::RNVPCouplingLayer, n::Int = 1)
+function Base.show(io::IO, obj::RNVPCouplingLayer)
 
     dim_s_net = [size(obj.s_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.layers]...]
     dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
 
-    println(io, "• layer_$n -> s_net: $(sum(length, Flux.trainables(obj.s_net))) parameters -> $dim_s_net")
-    println(io, "• layer_$n -> t_net: $(sum(length, Flux.trainables(obj.t_net))) parameters -> $dim_t_net")
-    println(io, "• layer_$n -> axes: $(obj.axes)")
+    println(io, "• RNVPCouplingLayer -> s_net: $(sum(length, Flux.trainables(obj.s_net))) parameters -> $dim_s_net")
+    println(io, "• RNVPCouplingLayer -> t_net: $(sum(length, Flux.trainables(obj.t_net))) parameters -> $dim_t_net")
+    println(io, "• RNVPCouplingLayer -> axes: $(obj.axes)")
+end
+
+function RNVP_backward(
+    s::AbstractArray{T, N}, 
+    t::AbstractArray{T, N}, 
+    u::AbstractArray{T, N}, 
+    axis_id::AbstractVector{Int},
+    axis_af::AbstractVector{Int}
+    ) where {T<:AbstractFloat, N}
+
+    # Compute log-det-Jacobian
+    ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
+
+    # because the operation below is can not be treated automatically
+    # differentiated by Zygote, we write our own rrule below
+    z = similar(u)
+    @views selectdim(z, 1, axis_id) .= selectdim(u, 1, axis_id)
+    @views selectdim(z, 1, axis_af) .= (selectdim(u, 1, axis_af) .- t) .* exp.(-s)
+
+    return z, ln_det_jac
+
+end
+
+
+function ChainRulesCore.rrule(
+    ::typeof(RNVP_backward),
+    s::AbstractArray{T, N}, 
+    t::AbstractArray{T, N}, 
+    u::AbstractArray{T, N},
+    axis_id::AbstractVector{Int},
+    axis_af::AbstractVector{Int} 
+    ) where {T<:AbstractFloat, N}
+
+    # Compute log-det-Jacobian
+    ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
+
+    z = similar(u)
+    @views selectdim(z, 1, axis_id) .= selectdim(u, 1, axis_id)
+    @views selectdim(z, 1, axis_af) .= (selectdim(u, 1, axis_af) .- t) .* exp.(-s)
+
+    # Let us call R the output of the entire NN
+    # z̄ = ∂R/∂z, s̄ = ∂R/∂s, etc...
+    # then we need to return s̄, t̄, ū from z̄, j̄ (where j = ln_det_jac)
+    # From the chain rule
+    # s̄ = ∂R/∂s = ∂R/∂z * ∂z/∂s + ∂R/∂j * ∂j/∂s
+    # t̄ = ∂R/∂t = ∂R/∂z * ∂z/∂t + ∂R/∂j * ∂j/∂t
+    # ū = ∂R/∂u = ∂R/∂z * ∂z/∂u + ∂R/∂j * ∂j/∂u
+    # as z = (u-t)*exp(-s) and j = sum(s) this yields the relations below
+    function pullback(ȳ)
+        
+        z̄, j̄ = ȳ
+
+        z̄_af = selectdim(z̄, 1, axis_af)
+        z̄_id = selectdim(z̄, 1, axis_id)
+        
+        u_af = selectdim(u, 1, axis_af)
+
+        s̄ = - z̄_af .* (u_af .- t) .* exp.(-s) - reshape(j̄, size(s))
+        t̄ = - z̄_af .* exp.(-s)
+        
+        ū = zeros(T, size(u))
+        @views selectdim(ū, 1, axis_af) .= z̄_af .* exp.(-s)
+        @views selectdim(ū, 1, axis_id) .= z̄_id
+
+        return ChainRulesCore.NoTangent(), s̄, t̄, ū, ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent()
+
+    end 
+
+    return (z, ln_det_jac), pullback
+
 end
 
 
 function backward(
     layer::RNVPCouplingLayer, 
     x::AbstractArray{T, N}, 
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(x)
     ) where {T<:AbstractFloat, N}
 
-    inds_nn = (layer.axes.axis_nn, ntuple(_ -> :, N-1)...)
-    inds_id = (layer.axes.axis_id, ntuple(_ -> :, N-1)...)
-    inds_af = (layer.axes.axis_af, ntuple(_ -> :, N-1)...)
-    
-    if θ === nothing || size(θ, 1) == 0
-        @views input = x[inds_nn...]
-    else
-        @views input = vcat(θ, x)[inds_nn...]
-    end
+    input = selectdim(vcat(θ, x), 1, layer.axes.axis_nn)
     
     s = layer.s_net(input)
     t = layer.t_net(input)
 
-    # Compute log-det-Jacobian
-    ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
+    return RNVP_backward(s, t, x, layer.axes.axis_id, layer.axes.axis_af)
 
-    # check if we are using a reverse layer of not
-    # in a reverse layer the modyfied entries are
-    # before the one left unchanged
-
-    if !(layer.axes.reverse)
-        # if not reverse the identity comes before the affine transformation
-        return (@views vcat(x[inds_id...], (x[inds_af...] .- t) .* exp.(-s))), ln_det_jac
-    end
-
-    # otherwise it is the opposite
-    return (@views vcat((x[inds_af...] .- t) .* exp.(-s), x[inds_id...])), ln_det_jac
-    
 end
-
 
 
 function forward(
     layer::RNVPCouplingLayer, 
     z::AbstractArray{T, N}, 
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(z)
     ) where {T<:AbstractFloat, N}
 
-    inds_nn = (layer.axes.axis_nn, ntuple(_ -> :, N-1)...)
-    inds_id = (layer.axes.axis_id, ntuple(_ -> :, N-1)...)
-    inds_af = (layer.axes.axis_af, ntuple(_ -> :, N-1)...)
-    
-    if θ === nothing || size(θ, 1) == 0
-        @views input = z[inds_nn...]
-    else
-        @views input = vcat(θ, z)[inds_nn...]
-    end
+    input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
-    s = layer.s_net(input) # output of size (d-j, n_samples) or (j, n_samples)
-    t = layer.t_net(input) # output of size (d-j, n_samples) or (j, n_samples)
+    s = layer.s_net(input)
+    t = layer.t_net(input)
 
     # ln|det J[T^{-1}]|
     ln_det_jac = dropdims(sum(s, dims = 1), dims = 1)
 
-    # check if we are using a reverse layer of not
-    # in a reverse layer the modyfied entries are
-    # before the one left unchanged
+    x = similar(z)
+    @views selectdim(x, 1, layer.axes.axis_id) .= selectdim(z, 1, layer.axes.axis_id)
+    @views selectdim(x, 1, layer.axes.axis_af) .= selectdim(z, 1, layer.axes.axis_af) .* exp.(s) .+ t 
 
-    if !(layer.axes.reverse)
-        return (@views vcat((z[inds_id...], z[inds_af...] .* exp.(s) .+ t )...)), ln_det_jac
-    end
-        
-    return (@views vcat((z[inds_af...] .* exp.(s) .+ t, z[inds_id...])...)), ln_det_jac
-
+    return x, ln_det_jac
 end
 
 
 function forward!(
     layer::RNVPCouplingLayer, 
     z::AbstractArray{T, N}, 
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
+    θ::AbstractArray{T, N} = dflt_θ(z)
     ) where {T<:AbstractFloat, N}
 
-    inds_nn = (layer.axes.axis_nn, ntuple(_ -> :, N-1)...)
-    inds_af = (layer.axes.axis_af, ntuple(_ -> :, N-1)...)
-    
-    if θ === nothing || size(θ, 1) == 0
-        @views input = z[inds_nn...]
-    else
-        @views input = vcat(θ, z)[inds_nn...]
-    end
+    input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
-    s = layer.s_net(input) # output of size (d-j, n_samples) or (j, n_samples)
-    t = layer.t_net(input) # output of size (d-j, n_samples) or (j, n_samples)
+    s = layer.s_net(input)
+    t = layer.t_net(input)
 
-    z[inds_af...] .= z[inds_af...] .* exp.(s) .+ t 
+    @views z_af = selectdim(z, 1, layer.axes.axis_af)
+    z_af .= z_af .* exp.(s) .+ t
 
 end
 
-@doc raw""" 
-    
-    RNVPCouplingLayer <: AffineCouplingLayer
-    
-Can be called as a functor `f::RNVPCouplingLayer(z, θ=nothing)` equivalent
-to `forward(f, z, θ)` 
-"""
-function (f::RNVPCouplingLayer)(
-    z::AbstractArray{T, N}, 
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
-    ) where {T<:AbstractFloat, N}
-    return forward(f, z, θ)
-end
 
