@@ -24,12 +24,19 @@
 ##################################################################################
 
 
-export RNVPCouplingLayer
+export RNVPCouplingLayer, RNVP_backward
 
 ############
 # Real-NVP layer structure
 
+@doc raw"""
 
+    RNVPCouplingLayer(s_net, t_net, axes)
+
+Structure of a Real-Non-Volume-Preserving affine coupling layer.
+
+Contains 
+"""
 struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
     
     s_net::T
@@ -39,26 +46,38 @@ struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
 
 end
 
+# make the coupling layer parameters trainable
 @auto_flow RNVPCouplingLayer [:s_net, :t_net]
+
+# create a functor function to call RNVPCouplingLayer(...) 
+# in place of forward(::RNVPCouplingLayer, ...) if wanted
 @auto_functor RNVPCouplingLayer
 
+
+# Define a custom show function
 function Base.show(io::IO, obj::RNVPCouplingLayer)
 
     dim_s_net = [size(obj.s_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.layers]...]
     dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
 
-    println(io, "• RNVPCouplingLayer -> s_net: $(sum(length, Flux.trainables(obj.s_net))) parameters -> $dim_s_net")
-    println(io, "• RNVPCouplingLayer -> t_net: $(sum(length, Flux.trainables(obj.t_net))) parameters -> $dim_t_net")
-    println(io, "• RNVPCouplingLayer -> axes: $(obj.axes)")
+    println(io, "• RNVPCouplingLayer > s_net: $dim_s_net ($(sum(length, Flux.trainables(obj.s_net))) parameters)")
+    println(io, "• RNVPCouplingLayer > t_net: $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
+    println(io, "• RNVPCouplingLayer > axes: $(obj.axes)")
 end
 
+@doc raw"""
+
+    RNVP_backward(s, t, u, axis_id, axis_af)
+
+Return z = (u-t)*exp(s).
+"""
 function RNVP_backward(
-    s::AbstractArray{T, N}, 
-    t::AbstractArray{T, N}, 
-    u::AbstractArray{T, N}, 
+    s::AbstractArray{T}, 
+    t::AbstractArray{T}, 
+    u::AbstractArray{T}, 
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int}
-    ) where {T<:AbstractFloat, N}
+    ) where {T}
 
     # Compute log-det-Jacobian
     ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
@@ -66,8 +85,8 @@ function RNVP_backward(
     # because the operation below is can not be treated automatically
     # differentiated by Zygote, we write our own rrule below
     z = similar(u)
-    @views selectdim(z, 1, axis_id) .= selectdim(u, 1, axis_id)
-    @views selectdim(z, 1, axis_af) .= (selectdim(u, 1, axis_af) .- t) .* exp.(-s)
+    selectdim(z, 1, axis_id) .= selectdim(u, 1, axis_id)
+    selectdim(z, 1, axis_af) .= (selectdim(u, 1, axis_af) .- t) .* exp.(-s)
 
     return z, ln_det_jac
 
@@ -76,19 +95,15 @@ end
 
 function ChainRulesCore.rrule(
     ::typeof(RNVP_backward),
-    s::AbstractArray{T, N}, 
-    t::AbstractArray{T, N}, 
-    u::AbstractArray{T, N},
+    s::AbstractArray{T}, 
+    t::AbstractArray{T}, 
+    u::AbstractArray{T},
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int} 
-    ) where {T<:AbstractFloat, N}
+    ) where {T}
 
-    # Compute log-det-Jacobian
-    ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
-
-    z = similar(u)
-    @views selectdim(z, 1, axis_id) .= selectdim(u, 1, axis_id)
-    @views selectdim(z, 1, axis_af) .= (selectdim(u, 1, axis_af) .- t) .* exp.(-s)
+    # Evaluate the function
+    z, ln_det_jac = RNVP_backward(s, t, u, axis_id, axis_af)
 
     # Let us call R the output of the entire NN
     # z̄ = ∂R/∂z, s̄ = ∂R/∂s, etc...
@@ -98,7 +113,7 @@ function ChainRulesCore.rrule(
     # t̄ = ∂R/∂t = ∂R/∂z * ∂z/∂t + ∂R/∂j * ∂j/∂t
     # ū = ∂R/∂u = ∂R/∂z * ∂z/∂u + ∂R/∂j * ∂j/∂u
     # as z = (u-t)*exp(-s) and j = sum(s) this yields the relations below
-    function pullback(ȳ)
+    function RNVP_backward_pullback(ȳ)
         
         z̄, j̄ = ȳ
 
@@ -111,26 +126,28 @@ function ChainRulesCore.rrule(
         t̄ = - z̄_af .* exp.(-s)
         
         ū = zeros(T, size(u))
-        @views selectdim(ū, 1, axis_af) .= z̄_af .* exp.(-s)
-        @views selectdim(ū, 1, axis_id) .= z̄_id
+        selectdim(ū, 1, axis_af) .= z̄_af .* exp.(-s)
+        selectdim(ū, 1, axis_id) .= z̄_id
 
         return ChainRulesCore.NoTangent(), s̄, t̄, ū, ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent()
 
     end 
 
-    return (z, ln_det_jac), pullback
+    return (z, ln_det_jac), RNVP_backward_pullback
 
 end
 
 
 function backward(
     layer::RNVPCouplingLayer, 
-    x::AbstractArray{T, N}, 
-    θ::AbstractArray{T, N} = dflt_θ(x)
-    ) where {T<:AbstractFloat, N}
+    x::AbstractArray{T}, 
+    θ::AbstractArray{T} = dflt_θ(x)
+    ) where {T}
 
+    # define the input from the
     input = selectdim(vcat(θ, x), 1, layer.axes.axis_nn)
     
+    # get the output from the s and t neural networks
     s = layer.s_net(input)
     t = layer.t_net(input)
 
@@ -141,9 +158,9 @@ end
 
 function forward(
     layer::RNVPCouplingLayer, 
-    z::AbstractArray{T, N}, 
-    θ::AbstractArray{T, N} = dflt_θ(z)
-    ) where {T<:AbstractFloat, N}
+    z::AbstractArray{T}, 
+    θ::AbstractArray{T} = dflt_θ(z)
+    ) where {T}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
@@ -154,8 +171,8 @@ function forward(
     ln_det_jac = dropdims(sum(s, dims = 1), dims = 1)
 
     x = similar(z)
-    @views selectdim(x, 1, layer.axes.axis_id) .= selectdim(z, 1, layer.axes.axis_id)
-    @views selectdim(x, 1, layer.axes.axis_af) .= selectdim(z, 1, layer.axes.axis_af) .* exp.(s) .+ t 
+    selectdim(x, 1, layer.axes.axis_id) .= selectdim(z, 1, layer.axes.axis_id)
+    selectdim(x, 1, layer.axes.axis_af) .= selectdim(z, 1, layer.axes.axis_af) .* exp.(s) .+ t 
 
     return x, ln_det_jac
 end
@@ -163,16 +180,16 @@ end
 
 function forward!(
     layer::RNVPCouplingLayer, 
-    z::AbstractArray{T, N}, 
-    θ::AbstractArray{T, N} = dflt_θ(z)
-    ) where {T<:AbstractFloat, N}
+    z::AbstractArray{T}, 
+    θ::AbstractArray{T} = dflt_θ(z)
+    ) where {T}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
     s = layer.s_net(input)
     t = layer.t_net(input)
 
-    @views z_af = selectdim(z, 1, layer.axes.axis_af)
+    z_af = selectdim(z, 1, layer.axes.axis_af)
     z_af .= z_af .* exp.(s) .+ t
 
 end

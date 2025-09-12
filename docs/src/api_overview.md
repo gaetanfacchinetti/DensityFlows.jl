@@ -11,8 +11,6 @@ CollapsedDocStrings = true
 ```@docs
 Flow
 FlowElement
-AffineCouplingElement
-RNVPCouplingLayer
 ```
 
 The hierarchy of types can be visualised from the following outputs  
@@ -30,6 +28,7 @@ RNVPCouplingLayer <: AffineCouplingLayer
 ```@docs
 backward
 forward
+forward!
 ```
 
 
@@ -38,4 +37,12 @@ forward
 ```@docs
 save
 load
+```
+
+## Macros
+
+```@docs
+@auto_flow
+@auto_forward
+@auto_functor
 ```

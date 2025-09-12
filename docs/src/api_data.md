@@ -3,7 +3,7 @@ CollapsedDocStrings = true
 ```
 
 
-# Data management
+# Data
 
 
 ## Structures
@@ -15,6 +15,11 @@ DataPartition
 ```
 
 ## Functions
+
+
+```@docs
+dflt_θ
+```
 
 ```@docs
 data_x_min

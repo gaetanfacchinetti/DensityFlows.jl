@@ -35,10 +35,10 @@ Return ``f^{-1}(x \,|\, \theta)`` and ``J_{f^{-1}}(x \,| \,\theta)`` where ``\th
 
 
 # Arguments
-- `x::AbstractArray{T, N}`: arguments to pass to the flow element.
-- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+- `x::AbstractArray{T}`: arguments to pass to the flow element.
+- `θ::AbstractArray{T}`: parameters / conditions (default is [`dflt_θ`](@ref)).
 """
-backward
+function backward end
 
 
 @doc raw"""
@@ -49,10 +49,10 @@ Return ``f(z  \,| \,\theta)`` and ``J_{f}(z \,| \,\theta)`` where ``\theta`` is 
 
 
 # Arguments
-- `z::AbstractArray{T, N}`: arguments to pass to the flow element.
-- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+- `z::AbstractArray{T}`: arguments to pass to the flow element.
+- `θ::AbstractArray{T}`: parameters / conditions (default is [`dflt_θ`](@ref)).
 """
-forward
+function forward end
 
 
 @doc raw"""
@@ -63,24 +63,67 @@ Replace `z` by ``f(z  \,| \,\theta)`` where ``\theta`` is an array of parameters
 
 
 # Arguments
-- `z::AbstractArray{T, N}`: arguments to pass to the flow element.
-- `θ::Union{AbstractArray{T, N}, Nothing}`: parameters / conditions (default is `nothing`).
+- `z::AbstractArray{T}`: arguments to pass to the flow element.
+- `θ::AbstractArray{T}`: parameters / conditions (default is [`dflt_θ`](@ref)).
 """
-forward!
+function forward! end
 
 
 ######################## 
 
-export FlowChain
+export FlowChain, FlowChainAffine, concatenate, +
 
 struct FlowChain{T<:Union{Tuple, AbstractVector}} <: FlowElement
     layers::T
 end
 
-FlowChain(xs...) = FlowChain(xs)
-
 @auto_flow FlowChain
+@auto_functor FlowChain
 
+@doc raw"""
+
+    FlowChain(elements::Tuple)
+    FlowChain(elements...)
+    FlowChain([T = AffineCouplingBlock, ], n, args...; kwars... )
+
+Instanciate a chain of flow elements from a Tuple.
+
+Possible to directly pass the elements of a chain, or construct a
+chain of `n` identical blocks of type `T`, with `args...` 
+and `kws...` passed to the constructor of `T`.
+"""
+function FlowChain end
+
+FlowChain(xs::Tuple{Vararg{FlowElement}}...) = FlowChain(xs)
+FlowChain(::Type{T}, n::Int, args...; kws...) where {T<:FlowElement} = FlowChain([T(args...; kws...) for _ ∈ 1:n]...)
+FlowChain(n::Int, args...; kws...) = FlowChain(AffineCouplingBlock, n, args...; kws...)
+
+@doc raw"""
+
+    concatenate(x::FlowChain...)
+
+Make one `FlowChain` from multiple chains.
+
+See also [`+`](@ref)
+"""
+concatenate(x::FlowChain...) = concatenate(x)
+concatenate(x::Tuple{Vararg{FlowChain}}) = FlowChain(vcat([y.layers for y in x]...))
+
+@doc raw"""
+
+    +(x::FlowChain, y::FlowChain, z::FlowChain...)
+
+Return the concatenation of chains (x, y, z).
+
+See also [`concatenate`](@ref)
+"""
+Base.:+(x::FlowChain, y::FlowChain, z::FlowChain...) = concatenate([x + y, z]...)
+
+
+# length of the chain
+Base.length(chain::FlowChain) = length(chain.layers)
+
+# making a nicer show function
 function Base.show(io::IO, obj::FlowChain)
     for layer in obj.layers
         show(io, layer)
@@ -90,8 +133,7 @@ end
 
 @doc raw"""
     
-    FlowChain(n_couplings, axes, U; kws...)
-    FlowChain(xs...)
+    FlowChainAffine(n_couplings, axes, U; kws...)
     
 Create an chain of FlowElements.
 
@@ -107,17 +149,17 @@ blocks passed as `xs`.
 Keywords arguments `kws...` are passed to the constructor of `AffineCouplingLayer` or `AffineCouplingBlock`.
 See also [`AffineCouplingLayer`](@ref) or [`AffineCouplingBlock`](@ref).
 """
-function FlowChain(
+function FlowChainAffine(
+    ::Type{U},
     n_couplings::Int, 
-    axes::AffineCouplingAxes,
-    ::Type{U} = AffineCouplingBlock;
+    axes::AffineCouplingAxes;
     kws...
     ) where  {U<:AffineCouplingElement}
 
-    stack = [U(axes; kws...) for _ in 1:n_couplings]
-    
-    return FlowChain(stack)
+    return FlowChain([U(axes; kws...) for _ in 1:n_couplings]...)
+
 end
+
 
 
 

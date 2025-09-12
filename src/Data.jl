@@ -27,6 +27,43 @@ export MetaData, DataPartition, DataArrays
 export data_x_min, data_x_max, data_θ_min, data_θ_max
 export normalize_input, normalize_input!
 export resize_output, resize_output!
+export dflt_θ
+
+
+@doc raw"""
+
+    dflt_θ([T = Float32,] dims::Tuple)
+    dflt_θ([T = Float32,] dims...)
+    dflt_θ(x::AbstractArray)
+
+Default value of the parameters, setting the first dimension to size 0.
+
+Arguments are the same than `zeros` or `ones`. If an array `x` is passed
+returns an array of the same dimensions than `x` with the first dimension
+set to size 0.
+
+# Examples
+```jldoctest
+julia> dflt_θ(2, 3)
+0×2×3 Array{Float32, 3}
+
+julia> dflt_θ(ones(2, 4, 5))
+0×4×5 Array{Float64, 3}
+```
+"""
+function dflt_θ end
+
+dflt_θ(dims::Base.DimOrInd...) = dflt_θ(dims)
+dflt_θ(::Type{T}, dims::Base.DimOrInd...) where {T} = dflt_θ(T, dims)
+dflt_θ(dims::Tuple{Vararg{Base.DimOrInd}}) = dflt_θ(Float32, dims)
+dflt_θ(::Type{T}, dims::NTuple{N, Union{Integer, Base.OneTo}}) where {T, N} = dflt_θ(Float32, map(Base.to_dim, dims))
+dflt_θ(x::AbstractArray{T, N}) where {T,N} = dflt_θ(T, size(x)[2:N])
+
+function dflt_θ(::Type{T}, dims::NTuple{N, Integer}) where {T,N}
+    return Array{T,N+1}(undef, (0, dims...))
+end
+
+
 
 @doc raw"""
 

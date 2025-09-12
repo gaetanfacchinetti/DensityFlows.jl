@@ -24,11 +24,17 @@ Base.reverse
 ## Coupling elements
 
 ```@docs
+AffineCouplingElement
 AffineCouplingLayer
 AffineCouplingBlock
+RNVPCouplingLayer
 ```
 
+## Specific functions
 
+```@docs
+RNVP_backward
+```
 
 
 

@@ -4,7 +4,7 @@ using DensityFlows
 DocMeta.setdocmeta!(
     DensityFlows,
     :DocTestSetup,
-    :(using DensityFlows);
+    :(using DensityFlows, Flux);
     recursive=true
 )
 
@@ -18,6 +18,6 @@ makedocs(
     ;modules=[DensityFlows], 
     sitename="DensityFlows.jl", 
     pages=pages,
-    meta=Dict(:DocTestSetup => :(using DensityFlows)),
+    meta=Dict(:DocTestSetup => :(using DensityFlows, Flux)),
     format = Documenter.HTML(collapselevel = 1)
     )

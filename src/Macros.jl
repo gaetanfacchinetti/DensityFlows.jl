@@ -24,6 +24,8 @@
 ##################################################################################
 
 
+export @auto_flow, @auto_forward, @auto_functor, @summary
+
 macro _flowtrainable(T, fields)
     return esc(quote
         # Specify exactly what are the trainable parameters
@@ -64,16 +66,16 @@ Automatically makes type `T` a `Flux` layer with trainable
 parameters `fields` (array of `Symbols`). If no `fields` is passed 
 all fields are assumed to be trainable if they can be. 
 """
-auto_flow
+macro auto_flow end
 
 
 @doc raw"""
 
     auto_forward(T)
 
-Automatically define a `forward!` function for type `T` 
+Automatically define a [`forward!`](@ref) function for type `T` 
 from [`forward`](@ref) if there is no possible optimization to 
-be found in  writting a specific `forward!` function.
+be found in  writting a specific [`forward!`](@ref) function.
 """
 macro auto_forward(T)
     
@@ -114,4 +116,9 @@ macro auto_functor(T)
         end
     end)
 
+end
+
+
+macro summary(obj)
+    return :(show($(esc(obj))))
 end

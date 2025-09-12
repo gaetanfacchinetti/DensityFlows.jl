@@ -33,6 +33,10 @@ export reverse, forward, backward, forward!
 ##################################################################################
 # METHODS
 
+
+##################################################################################
+# Axes
+
 @doc raw"""
 
     AffineCouplingAxes(d, mask; kws )
@@ -105,65 +109,45 @@ function Base.reverse(axes::AffineCouplingAxes)
 
 end
 
+function is_reverse(axes_1::AffineCouplingAxes, axes_2::AffineCouplingAxes)
+    return all(axes_1.axis_af .== axes_2.axis_id) && all(axes_2.axis_af .== axes_1.axis_id) && (axes_1.n == axes_2.n)
+end
 
 
-function AffineCouplingLayer(;
-    axes::AffineCouplingAxes,
+
+##################################################################################
+# Layers
+
+
+function _dflt_net(
     input_dim::Int,
     output_dim::Int,
+    n::Int;
     hidden_dim::Int = 32,
-    n_sublayers_t::Int = 2, 
-    n_sublayers_s::Int = 0)
+    σ::Function = Flux.relu,
+    bias::Bool = true)
 
-    t_sublayers = (
-        [Flux.Dense(input_dim, hidden_dim, Flux.relu)],
-        [Flux.Dense(hidden_dim, hidden_dim, Flux.relu) for _ in 1:n_sublayers_t],
-        [Flux.Dense(hidden_dim, output_dim)]
+        
+    sublayers = (
+        [Dense(input_dim, hidden_dim, σ, bias = bias)],
+        [Dense(hidden_dim, hidden_dim, σ, bias = bias) for _ in 1:(n-1)],
+        [Dense(hidden_dim, output_dim, Flux.identity, bias = bias)]
     )
     
-    t_net = Flux.Chain(vcat(t_sublayers...)...)
-
-    if n_sublayers_s <= 0
-        return NICECouplingLayer(t_net, axes)
-    end
-
-    s_sublayers = (
-        [Flux.Dense(input_dim, hidden_dim, Flux.relu)],
-        [Flux.Dense(hidden_dim, hidden_dim, Flux.relu) for _ in 1:n_sublayers_s],
-        [Flux.Dense(hidden_dim, output_dim)]
-    )
-
-    s_net = Flux.Chain(vcat(s_sublayers...)...)
-
-    return RNVPCouplingLayer(s_net, t_net, axes)
+    return Flux.Chain(vcat(sublayers...)...)
 
 end
 
-
-function AffineCouplingLayer(
-    axes::AffineCouplingAxes;
-    hidden_dim::Int = 32,
-    n_sublayers_t::Int = 2, 
-    n_sublayers_s::Int = 0)
-
-    input_dim  = length(axes.axis_nn)
-    output_dim = length(axes.axis_af)
-
-    return AffineCouplingLayer(
-        axes = axes,
-        input_dim = input_dim, 
-        output_dim = output_dim, 
-        hidden_dim = hidden_dim, 
-        n_sublayers_s = n_sublayers_s, 
-        n_sublayers_t = n_sublayers_t)
-
-end
 
 
 @doc raw"""
     
-    AffineCouplingLayer(axes; kws...)
-    AffineCouplingLayer(d, n=0; kws...)
+    AffineCouplingLayer([T=RNVPCouplingLayer, ] axes; kws...)
+    AffineCouplingLayer([T=RNVPCouplingLayer, ] d, j = d ÷ 2; n=0, reverse=false, kws...)
+    AffineCouplingLayer([T=RNVPCouplingLayer, ] d, mask; n=0, kws...)
+    
+    AffineCouplingLayer(t_net, axes)
+    AffineCouplingLayer(s_net, t_net, axes)
       
 Create an AffineCouplingLayer with NN models `s` and `t`.
 
@@ -181,124 +165,125 @@ and
     f^{-1}(z) = \exp(-s) * (z-t) \quad {\rm if~backward} \, .
 ```
 
+By default `s` and `t` are built with `Dense` neural networks.
+
 # Arguments
 - `axes::AffineCouplingAxes`.
 - `d::Int`: dimension of the flow.
-- `n::Int`: number of conditions / parameters (default is 0).
 - `j::Int`: dimension cut (default is `d`÷2).
-- `reverse::Bool`: (default is `false`).
+- `mask::Vector{Int}`: dimensions that are affected by the coupling.
+
+# Keywords arguments
+- `n::Int`: number of conditions / parameters (default is 0).
 - `hidden_dim::Int`: number of hidden dimensions in `s` and `t` (default is 32).
 - `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
 - `n_sublayers_s::Int`: number of sublayers in `s` (default is 2).
+- `σ::Function`: activation function (default is `Flux.relu`).
+- `bias::Bool`: activate bias (default is `true`).
 
-If `axes` is provided, then `d`, `n`, `j` and `reverse` should not be passed as arguments
-as they would be redondant. 
-
-The dimension cut `j` specifies which dimensions are not modified by the layer. 
-If `reverse` is `false` the layer acts as the identity on dimensions (1, `j`).
-If `reverse` is `true`  the layer acts as the identity on dimensions (`j`+1, `d`).
+# Example
+```jldoctest
+julia> @summary AffineCouplingLayer(3, [1, 3], n=2, hidden_dim=10, n_sublayers_s=1, σ=Flux.tanh)
+• RNVPCouplingLayer > s_net: [3, 10, 2] (62 parameters)
+• RNVPCouplingLayer > t_net: [3, 10, 10, 2] (172 parameters)
+• RNVPCouplingLayer > axes: (d,n)=(3,2), id=[2], af=[1, 3]
+```
 
 See also [`AffineCouplingAxes`](@ref).
 """
-function AffineCouplingLayer(
-    d::Int,
-    n::Int = 0;
-    j::Int = d ÷ 2,
-    hidden_dim::Int = 32,
-    n_sublayers_t::Int = 2, 
-    n_sublayers_s::Int = 0)
-
-    axes = AffineCouplingAxes(d, j, n=n)
-    
-    return AffineCouplingLayer(
-        axes, 
-        hidden_dim = hidden_dim, 
-        n_sublayers_s = n_sublayers_s, 
-        n_sublayers_t = n_sublayers_t)
-
-end
-
-
-function AffineCouplingBlock(;
-    axes_1::AffineCouplingAxes,
-    axes_2::AffineCouplingAxes,
-    input_dim_1::Int,
-    output_dim_1::Int,
-    input_dim_2::Int,
-    output_dim_2::Int,
-    hidden_dim::Int = 32,
-    n_sublayers_t::Int = 2, 
-    n_sublayers_s::Int = 0)
-
-    flow_1 = AffineCouplingLayer(
-        axes = axes_1,
-        input_dim = input_dim_1, 
-        output_dim = output_dim_1, 
-        hidden_dim = hidden_dim, 
-        n_sublayers_s = n_sublayers_s, 
-        n_sublayers_t = n_sublayers_t)
-
-    flow_2 = AffineCouplingLayer(
-        axes = axes_2,
-        input_dim = input_dim_2, 
-        output_dim = output_dim_2, 
-        hidden_dim = hidden_dim, 
-        n_sublayers_s = n_sublayers_s, 
-        n_sublayers_t = n_sublayers_t)
-    
-    return AffineCouplingBlock(flow_1, flow_2)
-    
-end
-
+function AffineCouplingLayer end
 
 
 @doc raw"""
     
-    AffineCouplingBlock(axes; kws...)
+    AffineCouplingBlock(layer_1, layer_2)
+    AffineCouplingBlock([T=RNVPCouplingLayer, ] first_axes; kws...)
+    AffineCouplingBlock([T=RNVPCouplingLayer, ] d, j = d ÷ 2; n=0, reverse=false, kws...)
+    AffineCouplingBlock([T=RNVPCouplingLayer, ] d, mask; n=0, kws...)
     
-Create an block of two [`AffineCouplingLayer`](@ref) with opposite axes.
-
-Opposite axes here means that one is set with `reverse` = `true` 
-and the other with `reverse` = `false`.
+Create an block of two [`AffineCouplingLayer`](@ref) with opposite / complementary axes.
 
 # Arguments
-- `axes::AffineCouplingAxes`.
+- `first_axes::AffineCouplingAxes`: axes of the first layer.
+- `d::Int`: dimension of the flow.
+- `j::Int`: dimension cut (default is `d`÷2).
+- `mask::Vector{Int}`: dimensions that are affected by the coupling.
+
+# Keyword arguments
 - `hidden_dim::Int`: number of hidden dimensions in `s` and `t` (default is 32).
 - `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
 - `n_sublayers_s::Int`: number of sublayers in `s` (default is 2).
+- `σ::Function`: activation function (default is `Flux.relu`).
+- `bias::Bool`: activate bias (default is `true`).).
+
+# Example
+```jldoctest
+julia> @summary AffineCouplingBlock(3, [1, 3], n=2, hidden_dim=10, n_sublayers_s=1, σ=Flux.tanh)
+• RNVPCouplingLayer > s_net: [3, 10, 2] (62 parameters)
+• RNVPCouplingLayer > t_net: [3, 10, 10, 2] (172 parameters)
+• RNVPCouplingLayer > axes: (d,n)=(3,2), id=[2], af=[1, 3]
+• RNVPCouplingLayer > s_net: [4, 10, 1] (61 parameters)
+• RNVPCouplingLayer > t_net: [4, 10, 10, 1] (171 parameters)
+• RNVPCouplingLayer > axes: (d,n)=(3,2), id=[1, 3], af=[2]
+```
 """
-function AffineCouplingBlock(
+function AffineCouplingBlock end
+
+
+AffineCouplingLayer(t_net::Flux.Chain, axes::AffineCouplingAxes) = NICECouplingLayer(t_net, axes)
+AffineCouplingLayer(s_net::Flux.Chain, t_net::Flux.Chain, axes::AffineCouplingAxes) = RNVPCouplingLayer(s_net, t_net, axes)
+
+
+for fname in (:AffineCouplingLayer, :AffineCouplingBlock)
+    @eval begin
+        $fname(axes::AffineCouplingAxes; kws...) = $fname(RNVPCouplingLayer, axes; kws...)
+        $fname(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = $fname(AffineCouplingAxes(d, j, n=n, reverse=reverse); kws...)
+        $fname(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = $fname(AffineCouplingAxes(d, mask, n=n); kws...)
+        $fname(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:AffineCouplingLayer} = $fname(AffineCouplingAxes(d, j, n=n, reverse=reverse); kws...)
+        $fname(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:AffineCouplingLayer} = $fname(AffineCouplingAxes(d, mask, n=n); kws...)
+    end 
+end
+
+
+function AffineCouplingLayer(
+    ::Type{T},
     axes::AffineCouplingAxes;
-    hidden_dim::Int = 32,
     n_sublayers_t::Int = 2, 
-    n_sublayers_s::Int = 0)
+    n_sublayers_s::Int = 2,
+    kws...
+    ) where {T<:AffineCouplingLayer}
+ 
 
-    axes_2 = reverse(axes)
+    input_dim  = length(axes.axis_nn)
+    output_dim = length(axes.axis_af)
 
-    input_dim_1  = length(axes.axis_nn)
-    output_dim_1 = length(axes.axis_af)
-    input_dim_2  = length(axes_2.axis_nn)
-    output_dim_2 = length(axes_2.axis_af)
+    t_net = _dflt_net(input_dim, output_dim, n_sublayers_t; kws...)
+    (T === NICECouplingLayer) && return T(t_net, axes)
+    
+    s_net = _dflt_net(input_dim, output_dim, n_sublayers_s; kws...)
 
-    return AffineCouplingBlock(
-        axes_1 = axes,
-        axes_2 = axes_2,
-        input_dim_1 = input_dim_1, 
-        output_dim_1 = output_dim_1, 
-        input_dim_2 = input_dim_2, 
-        output_dim_2 = output_dim_2, 
-        hidden_dim = hidden_dim, 
-        n_sublayers_s = n_sublayers_s, 
-        n_sublayers_t = n_sublayers_t)
+    return T(s_net, t_net, axes)
 
 end
 
+
+
+function AffineCouplingBlock(::Type{T}, first_axes::AffineCouplingAxes; kws...) where {T<:AffineCouplingLayer}
+ 
+    # define a second axis opposite / complementary to the first one
+    second_axes = reverse(first_axes)
+
+    layer_1 = AffineCouplingLayer(T, first_axes; kws...)
+    layer_2 = AffineCouplingLayer(T, second_axes; kws...)
+
+    return AffineCouplingBlock(layer_1, layer_2)
+
+end
 
 
 
 ##########################################################
 ## EVALUATION FUNCTIONS
-
 
 
 function backward(

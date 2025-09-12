@@ -23,10 +23,10 @@
 #
 ##################################################################################
 
-export AffineCouplingElement, AffineCouplingLayer
+export AffineCouplingElement
+export AffineCouplingLayer
 export AffineCouplingAxes
-export AffineCouplingBlock, AffineCouplingChain
-export AffineCouplingTest
+export AffineCouplingBlock
 
 struct AffineCouplingAxes
     
@@ -41,9 +41,8 @@ end
 
 
 function Base.show(io::IO, obj::AffineCouplingAxes)
-    print(io, "d = $(obj.d), n (params) = $(obj.n), unmodified dims = $(obj.axis_id), modified dims = $(obj.axis_af)")
+    print(io, "(d,n)=($(obj.d),$(obj.n)), id=$(obj.axis_id), af=$(obj.axis_af)")
 end
-
 
 
 @doc raw"""
@@ -58,12 +57,24 @@ abstract type AffineCouplingLayer <: AffineCouplingElement end
 # Affine block layer structure
 
 struct AffineCouplingBlock{T<:AffineCouplingLayer, U<:AffineCouplingLayer} <: AffineCouplingElement
+    
     layer_1::T
     layer_2::U
+
+    function AffineCouplingBlock(layer_1, layer_2)
+        
+        # check that the two input layers are compatible
+        if !(is_reverse(layer_1.axes, layer_2.axes))
+            throw(ArgumentError("When constructing a Block, layers should have opposite / complementary axes"))
+        end
+
+        return new{typeof(layer_1), typeof(layer_2)}(layer_1, layer_2)
+    end 
+
 end
 
-Flux.@layer AffineCouplingBlock
-Functors.@functor AffineCouplingBlock
+@auto_flow AffineCouplingBlock
+@auto_functor AffineCouplingBlock
 
 Base.length(obj::AffineCouplingBlock) = 2
 
@@ -72,11 +83,3 @@ function Base.show(io::IO, obj::AffineCouplingBlock)
     show(io, obj.layer_2)
 end
 
-
-###########
-# Test structure
-
-struct AffineCouplingTest{T<:Union{Tuple, AbstractVector}, U<:AffineCouplingElement} <: AffineCouplingElement
-    layers::T
-    single::U
-end

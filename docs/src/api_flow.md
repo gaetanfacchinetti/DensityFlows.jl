@@ -9,6 +9,9 @@ CollapsedDocStrings = true
 
 ```@docs
 FlowChain
+FlowChainAffine
++
+concatenate
 ```
 
 ## Density evaluation

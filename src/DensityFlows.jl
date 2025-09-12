@@ -44,10 +44,6 @@ export FlowElement
 @doc raw""" Building blocks of the flow """ 
 abstract type FlowElement end
 
-dflt_θ(::Type{T}, n::Int) where {T} = zeros(T, (0, n))
-dflt_θ(::Type{T}, dims::Tuple{Vararg{T}}) where {T} = zeros(T, (0, dims...))
-dflt_θ(x::AbstractArray{T, N}) where {T, N} = zeros(T, (0, size(x)[2:N]...))
-
 
 include("./Macros.jl")
 include("./Data.jl")
