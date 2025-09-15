@@ -52,12 +52,12 @@ get_type(::Type{T}) where {T} = string(Base.typename(T).wrapper)
 
 
 ###########################################################
-## Save / load AffineCouplingAxes
+## Save / load CouplingAxes
 
-function save(filename::String, axes::AffineCouplingAxes)
+function save(filename::String, axes::CouplingAxes)
 
     try
-        JLD2.jldsave(filename * ".jld2"; Dict(field => getfield(axes, field)  for field in fieldnames(AffineCouplingAxes))...)
+        JLD2.jldsave(filename * ".jld2"; Dict(field => getfield(axes, field)  for field in fieldnames(CouplingAxes))...)
     catch e
         println("Impossible to save the axes")
         rethrow(e)
@@ -65,13 +65,13 @@ function save(filename::String, axes::AffineCouplingAxes)
 
 end
 
-function load(filename::String, ::Type{AffineCouplingAxes})
+function load(filename::String, ::Type{CouplingAxes})
 
     try
         data = JLD2.jldopen(filename * ".jld2")
-        return AffineCouplingAxes([data[k] for k in string.(fieldnames(AffineCouplingAxes))]...)
+        return CouplingAxes([data[k] for k in string.(fieldnames(CouplingAxes))]...)
     catch e
-        println("Impossible to load AffineCouplingAxes at $filename")
+        println("Impossible to load CouplingAxes at $filename")
         rethrow(e)
     end
 
@@ -81,7 +81,7 @@ end
 #########################################################
 ## Save / load arrays
 
-function DensityFlows.save(filename::String, array::AbstractArray)
+function save(filename::String, array::AbstractArray)
     
     try
         JLD2.jldsave(filename * ".jld2"; array)

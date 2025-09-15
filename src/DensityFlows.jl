@@ -35,22 +35,25 @@ import LinearAlgebra
 import JLD2
 import ChainRulesCore
 
+import Base: reverse
 import ChainRulesCore: rrule
 import Distributions: sample, logpdf, pdf
 import Flux: Dense
 
-export FlowElement
+export FlowElement, CouplingLayer
 
 @doc raw""" Building blocks of the flow """ 
 abstract type FlowElement end
+abstract type CouplingLayer <: FlowElement end
 
 
 include("./Macros.jl")
 include("./Data.jl")
-include("./affine/AffineStructure.jl")
+include("./Axes.jl")
 include("./affine/RNVP.jl")
 include("./affine/NICE.jl")
-include("./affine/AffineCoupling.jl")
+include("./Layers.jl")
+include("./Blocks.jl")
 include("./Chains.jl")
 include("./Flows.jl")
 include("./Loading.jl")

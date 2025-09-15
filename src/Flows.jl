@@ -30,12 +30,11 @@
 export Flow, predict, predict!, sample, train!
 export logpdf, pdf
 
-
 ##########
 #Flow
 
 @doc raw""" Normalizing flow """
-struct Flow{T<:AbstractFloat, M<:FlowChain, D<:Distributions.Distribution, U<:AbstractArray{T}}
+struct Flow{T, M<:FlowChain, D<:Distributions.Distribution, U<:AbstractArray{T}}
     
     model::M
     base::D
@@ -50,11 +49,11 @@ end
 get_type(flow::Flow{T}) where {T} = T
 
 
-function Base.show(io::IO, obj::Flow)
-    println(io, "- model --------------------")
-    show(io, obj.model)
-    println(io, "- base distribution --------")
-    println(io, "• " * string(Base.typename(typeof(obj.base)).wrapper))
+function _print(obj::Flow)
+    println("- model --------------------")
+    _print(obj.model)
+    println("- base distribution --------")
+    println("• " * string(Base.typename(typeof(obj.base)).wrapper))
 end
 
 
@@ -77,17 +76,17 @@ Flow(model::FlowChain, base::Distributions.Distribution, data::DataArrays{T}) wh
 function Flow(
     n_couplings::Int,
     data::DataArrays{T}, 
-    ::Type{U} = AffineCouplingBlock,
+    ::Type{U} = CouplingBlock,
     base::Union{Distributions.Distribution, Nothing} = nothing;
     kws...
-    ) where {T<:AbstractFloat, U<:AffineCouplingElement}
+    ) where {T, U<:FlowElement}
     
     # the dimension is given by the size of x_min
     d = size(data.metadata.x_min, 1)
     n = size(data.metadata.θ_min, 1)
 
     # by default build an AffineCouplingFlow
-    axes = AffineCouplingAxes(d, n)
+    axes = CouplingAxes(d, n)
     chain = FlowChain(n_couplings, axes, U; kws...)
 
     if base === nothing
@@ -100,10 +99,10 @@ end
 
 
 
-backward(flow::Flow, y::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = backward(flow.model, y, t)
-forward(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat} = forward(flow.model, z, t)
+backward(flow::Flow, y::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T} = backward(flow.model, y, t)
+forward(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T} = forward(flow.model, z, t)
 
-@inline function forward!(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T<:AbstractFloat}
+@inline function forward!(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T}
     forward!(flow.model, z, t)
 end
 
@@ -114,7 +113,7 @@ function predict(
     flow::Flow, 
     z::AbstractArray{T}, 
     θ::AbstractArray{T} = dflt_θ(z)
-    ) where {T<:AbstractFloat}
+    ) where {T}
     
     t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
     return resize_output(forward(flow, z, t)[1], flow.metadata.x_min, flow.metadata.x_max)
@@ -123,10 +122,10 @@ end
 
 # work with the non renormalised quantities here
 function predict!(
-    flow::Flow, 
+    flow::Flow{T}, 
     z::AbstractArray{T}, 
     θ::AbstractArray{T} = dflt_θ(z)
-    ) where {T<:AbstractFloat}
+    ) where {T}
     
     if θ === nothing
         forward!(flow, z, nothing)
@@ -147,11 +146,11 @@ end
 
 
 function sample(
-    flow::Flow,
+    flow::Flow{T},
     n::Int = 1,
     θ::AbstractArray{T} = dflt_θ(get_type(flow), n),
     rng::Random.AbstractRNG = Random.default_rng()
-    ) where {T<:AbstractFloat}
+    ) where {T}
 
     r = rand(rng, flow.base, n)
     predict!(flow, r, θ)
@@ -169,10 +168,10 @@ Natural logarithm of the probability density function given by the flow.
 See also [`pdf`](@ref).
 """
 function logpdf(
-    flow::Flow,
+    flow::Flow{T},
     x::AbstractArray{T},
     θ::AbstractArray{T} = dflt_θ(x)
-    ) where {T<:AbstractFloat}
+    ) where {T}
 
     y = normalize_input(x, flow.metadata.x_min, flow.metadata.x_max)
 
@@ -194,10 +193,10 @@ Probability density function given by the flow.
 See also [`logpdf`](@ref).
 """
 function pdf(
-    flow::Flow,
+    flow::Flow{T},
     x::AbstractArray{T},
     θ::AbstractArray{T} = dflt_θ(x)
-    ) where {T<:AbstractFloat}
+    ) where {T}
 
     return exp(logpdf(flow, x, θ))
 
@@ -209,7 +208,7 @@ end
     z::AbstractArray{T},
     ln_det_jac::AbstractArray{T},
     base::Distributions.Distribution,
-    ) where {T<:AbstractFloat}
+    ) where {T}
 
     return - Distributions.mean(Distributions.logpdf(base, z) .+ ln_det_jac)
 end

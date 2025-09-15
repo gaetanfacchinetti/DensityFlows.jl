@@ -26,6 +26,8 @@
 
 export @auto_flow, @auto_forward, @auto_functor, @summary
 
+
+
 macro _flowtrainable(T, fields)
     return esc(quote
         # Specify exactly what are the trainable parameters
@@ -83,9 +85,9 @@ macro auto_forward(T)
        
         function forward!(
             m::$T, 
-            z::AbstractArray{T, N}, 
-            θ::Union{AbstractArray{T, N}, Nothing} = nothing
-            ) where {T<:AbstractFloat, N}
+            z::AbstractArray{U}, 
+            θ::AbstractArray{U} = dflt_θ(z)
+            ) where {U}
 
             z = forward(m, z, θ)
             return nothing
@@ -107,9 +109,9 @@ macro auto_functor(T)
     return esc(quote
         # Specify exactly what are the trainable parameters
         function (f::$T)(
-            z::AbstractArray{T, N}, 
-            θ::Union{AbstractArray{T, N}, Nothing} = nothing
-            ) where {T<:AbstractFloat, N}
+            z::AbstractArray{U}, 
+            θ::AbstractArray{U} = dflt_θ(z)
+            ) where {U}
 
             return forward(f, z, θ)
     
@@ -120,5 +122,5 @@ end
 
 
 macro summary(obj)
-    return :(show($(esc(obj))))
+    return :(_print($(esc(obj))))
 end

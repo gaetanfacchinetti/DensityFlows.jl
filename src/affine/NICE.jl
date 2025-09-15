@@ -28,10 +28,10 @@ export NICECouplingLayer
 ############
 # NICE layer structure
 
-struct NICECouplingLayer{T<:Flux.Chain} <: AffineCouplingLayer
+struct NICECouplingLayer{T<:Flux.Chain} <: CouplingLayer
     
     t_net::T  
-    axes::AffineCouplingAxes
+    axes::CouplingAxes
     
 end
 

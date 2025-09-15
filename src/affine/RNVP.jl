@@ -37,17 +37,17 @@ Structure of a Real-Non-Volume-Preserving affine coupling layer.
 
 Contains 
 """
-struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: AffineCouplingLayer
+struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: CouplingLayer
     
     s_net::T
     t_net::U
 
-    axes::AffineCouplingAxes
+    axes::CouplingAxes
 
 end
 
 # make the coupling layer parameters trainable
-@auto_flow RNVPCouplingLayer [:s_net, :t_net]
+@auto_flow RNVPCouplingLayer #[:s_net, :t_net]
 
 # create a functor function to call RNVPCouplingLayer(...) 
 # in place of forward(::RNVPCouplingLayer, ...) if wanted
@@ -55,14 +55,14 @@ end
 
 
 # Define a custom show function
-function Base.show(io::IO, obj::RNVPCouplingLayer)
+function _print(obj::RNVPCouplingLayer)
 
     dim_s_net = [size(obj.s_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.layers]...]
     dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
 
-    println(io, "• RNVPCouplingLayer > s_net: $dim_s_net ($(sum(length, Flux.trainables(obj.s_net))) parameters)")
-    println(io, "• RNVPCouplingLayer > t_net: $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
-    println(io, "• RNVPCouplingLayer > axes: $(obj.axes)")
+    println("• RNVPCouplingLayer > s_net: $dim_s_net ($(sum(length, Flux.trainables(obj.s_net))) parameters)")
+    println("• RNVPCouplingLayer > t_net: $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
+    println("• RNVPCouplingLayer > axes: $(obj.axes)")
 end
 
 @doc raw"""

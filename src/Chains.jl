@@ -24,6 +24,9 @@
 ##################################################################################
 
 
+export backward, forward, forward!
+export FlowChain, FlowChainAffine, concatenate, +
+
 ######################## 
 ## Documentation
 
@@ -71,20 +74,21 @@ function forward! end
 
 ######################## 
 
-export FlowChain, FlowChainAffine, concatenate, +
 
 struct FlowChain{T<:Union{Tuple, AbstractVector}} <: FlowElement
     layers::T
 end
 
-@auto_flow FlowChain
+@auto_flow FlowChain 
 @auto_functor FlowChain
+
+#Optimisers.trainable(m::FlowChain) = (; layers = Tuple([Optimisers.trainable(v) for v ∈ m]))
 
 @doc raw"""
 
     FlowChain(elements::Tuple)
     FlowChain(elements...)
-    FlowChain([T = AffineCouplingBlock, ], n, args...; kwars... )
+    FlowChain([T = CouplingBlock, ], n, args...; kwars... )
 
 Instanciate a chain of flow elements from a Tuple.
 
@@ -94,86 +98,61 @@ and `kws...` passed to the constructor of `T`.
 """
 function FlowChain end
 
-FlowChain(xs::Tuple{Vararg{FlowElement}}...) = FlowChain(xs)
+FlowChain(xs::FlowElement...) = FlowChain(xs)
 FlowChain(::Type{T}, n::Int, args...; kws...) where {T<:FlowElement} = FlowChain([T(args...; kws...) for _ ∈ 1:n]...)
-FlowChain(n::Int, args...; kws...) = FlowChain(AffineCouplingBlock, n, args...; kws...)
+FlowChain(n::Int, args...; kws...) = FlowChain(CouplingBlock, n, args...; kws...)
+
 
 @doc raw"""
 
     concatenate(x::FlowChain...)
+    concatenate(x::FlowChain, y::FlowElement...)
+    concatenate(x::Union{Tuple, FlowElement}, y::FlowChain...)
 
-Make one `FlowChain` from multiple chains.
-
-See also [`+`](@ref)
+Make one `FlowChain` from multiple chains or adding flow elements.
 """
 concatenate(x::FlowChain...) = concatenate(x)
 concatenate(x::Tuple{Vararg{FlowChain}}) = FlowChain(vcat([y.layers for y in x]...))
-
-@doc raw"""
-
-    +(x::FlowChain, y::FlowChain, z::FlowChain...)
-
-Return the concatenation of chains (x, y, z).
-
-See also [`concatenate`](@ref)
-"""
-Base.:+(x::FlowChain, y::FlowChain, z::FlowChain...) = concatenate([x + y, z]...)
+concatenate(x::FlowChain, y::FlowElement...) = FlowChain(x.layers..., y...)
+concatenate(x::Tuple{Vararg{FlowElement}}, y::FlowChain) = FlowChain(x..., y.layers...)
+concatenate(x::FlowElement, y::FlowChain) = FlowChain(x, y.layers...)
 
 
-# length of the chain
-Base.length(chain::FlowChain) = length(chain.layers)
+for fname ∈ (
+    :(Base.getindex), 
+    :(Base.length), 
+    :(Base.first), 
+    :(Base.last), 
+    :(Base.iterate), 
+    :(Base.lastindex),
+    :(Base.firstindex),
+    :(Base.keys),
+    )
+
+    @eval $fname(chain::FlowChain, args...; kws...) = $fname(chain.layers, args...; kws...)
+    
+end
+
 
 # making a nicer show function
-function Base.show(io::IO, obj::FlowChain)
-    for layer in obj.layers
-        show(io, layer)
+function _print(obj::FlowChain)
+    for layer ∈ obj
+        _print(layer)
     end
 end
 
 
-@doc raw"""
-    
-    FlowChainAffine(n_couplings, axes, U; kws...)
-    
-Create an chain of FlowElements.
-
-Can either create a chain of `n_couplings` similar layers or blocks by passing
-`n_couplings` and `axes` or instantiate a chain from pre-existings layers or 
-blocks passed as `xs`.
-
-# Arguments
-- `n_couplings::Int`: number of couplings.
-- `axes::AffineCouplingAxes`.
-- `U:Type`: type of struct in the chain, can be `AffineCouplingLayer` or `AffineCouplingBlock` (default is `AffineCouplingBlock`).
-
-Keywords arguments `kws...` are passed to the constructor of `AffineCouplingLayer` or `AffineCouplingBlock`.
-See also [`AffineCouplingLayer`](@ref) or [`AffineCouplingBlock`](@ref).
-"""
-function FlowChainAffine(
-    ::Type{U},
-    n_couplings::Int, 
-    axes::AffineCouplingAxes;
-    kws...
-    ) where  {U<:AffineCouplingElement}
-
-    return FlowChain([U(axes; kws...) for _ in 1:n_couplings]...)
-
-end
-
-
-
-
 function backward(
     chain::FlowChain, 
-    x::AbstractArray{T, N},
-    θ::AbstractArray{T, N} = dflt_θ(x)
-    ) where {T<:AbstractFloat, N}
+    x::AbstractArray{T},
+    θ::AbstractArray{T} = dflt_θ(x)
+    ) where {T}
 
-    n = length(chain.layers)
-    x_i , ln_det_jac = backward(chain.layers[end], x, θ)
+    n = length(chain)
+    x_i , ln_det_jac = backward(chain[end], x, θ)
 
     @inbounds for i ∈ 2:n
-        x_i, ln_det_jac_i = backward(chain.layers[n - i + 1], x_i, θ)
+        x_i, ln_det_jac_i = backward(chain[n - i + 1], x_i, θ)
         ln_det_jac = ln_det_jac .+ ln_det_jac_i
     end
 
@@ -184,15 +163,15 @@ end
 
 function forward(
     chain::FlowChain, 
-    z::AbstractArray{T, N},
-    θ::AbstractArray{T, N} = dflt_θ(z)
-    ) where {T<:AbstractFloat, N}
+    z::AbstractArray{T},
+    θ::AbstractArray{T} = dflt_θ(z)
+    ) where {T}
 
-    n = length(chain.layers)
-    z_i, ln_det_jac = forward(chain.layers[1], z, θ)
+    n = length(chain)
+    z_i, ln_det_jac = forward(chain[1], z, θ)
 
     @inbounds for i ∈ 2:n
-        z_i, ln_det_jac_i = forward(chain.layers[i], z_i, θ)
+        z_i, ln_det_jac_i = forward(chain[i], z_i, θ)
         ln_det_jac = ln_det_jac .+ ln_det_jac_i
     end
 
@@ -203,12 +182,12 @@ end
 
 function forward!(
     chain::FlowChain, 
-    z::AbstractArray{T, N},
-    θ::AbstractArray{T, N} = dflt_θ(z)
-    )  where {T<:AbstractFloat, N}
+    z::AbstractArray{T},
+    θ::AbstractArray{T} = dflt_θ(z)
+    )  where {T}
 
     for i ∈ eachindex(chain.layers)
-        forward!(chain.layers[i], z, θ)
+        forward!(chain[i], z, θ)
     end
 
 end

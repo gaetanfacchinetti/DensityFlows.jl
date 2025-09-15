@@ -24,7 +24,9 @@
 ##################################################################################
 
 
-struct NormalizationLayer{T<:AbstractFloat, U<:AbstractArray{T}} <: FlowElement
+abstract type NormalizationElement <: FlowElement end
+
+struct NormalizationLayer{T, U<:AbstractArray{T}} <: NormalizationElement
     x_min::U
     x_max::U
 end
@@ -35,16 +37,14 @@ function NormalizationLayer(x::AbstractArray{T, N}) where {T, N}
     return NormalizationLayer(x_min, x_max)
 end
 
-Flux.@layer NormalizationLayer
-Functors.@functor NormalizationLayer
-
-Optimisers.trainable(m::NormalizationLayer) = (;)
+@auto_flow NormalizationLayer []
+@auto_functor NormalizationLayer
 
 function DensityFlows.backward(
     nlayer::NormalizationLayer, 
-    x::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
-    ) where {T<:AbstractFloat, N}
+    x::AbstractArray{T},
+    θ::AbstractArray{T}
+    ) where {T}
 
     z = (x .- nlayer.x_min) ./ (nlayer.x_max .- nlayer.x_min)
     ln_det_jac = - sum(log.((nlayer.x_max .- nlayer.x_min)))
@@ -54,9 +54,9 @@ end
 
 function DensityFlows.forward(
     nlayer::NormalizationLayer, 
-    z::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
-    ) where {T<:AbstractFloat, N}
+    z::AbstractArray{T},
+    θ::AbstractArray{T}
+    ) where {T}
 
     x = (nlayer.x_max .- nlayer.x_min) .* z  .+ nlayer.x_min 
     ln_det_jac = + sum(log.((nlayer.x_max .- nlayer.x_min)))
@@ -67,38 +67,15 @@ end
 
 function DensityFlows.forward!(
     nlayer::NormalizationLayer, 
-    z::AbstractArray{T, N},
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing
-    ) where {T<:AbstractFloat, N}
+    z::AbstractArray{T},
+    θ::AbstractArray{T}
+    ) where {T}
 
     z = (nlayer.x_max .- nlayer.x_min) .* z  .+ nlayer.x_min 
 
 end
 
-function DensityFlows.save(filename::String, array::AbstractArray)
-    
-    try
-        JLD2.jldsave(filename * ".jld2"; array)
-    catch e
-        println("Impossible to save the normalization")
-        rethrow(e)
-    end
-
-end
-
-function load(filename::String, ::Type{AbstractArray})
-
-    try
-        data = JLD2.jldopen(filename * ".jld2")
-        return data["array"]
-    catch e
-        println("Impossible to load NormalizationLayer at $filename")
-        rethrow(e)
-    end
-
-end
-
 
 function Base.show(io::IO, obj::NormalizationLayer, n::Int = 1)
-    println(io, "• layer_$n -> normalization layer")
+    println(io, "• Normalization Layer")
 end
