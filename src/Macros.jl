@@ -24,11 +24,11 @@
 ##################################################################################
 
 
-export @auto_flow, @auto_forward, @auto_functor, @summary
+export @auto_flow, @auto_forward, @auto_functor, @summary, @select_trainables
 
 
 
-macro _flowtrainable(T, fields)
+macro select_trainables(T, fields)
     return esc(quote
         # Specify exactly what are the trainable parameters
         function Optimisers.trainable(m::$T)
@@ -47,7 +47,7 @@ end
 macro auto_flow(T)
     return esc(quote
         @_flowlayer $T
-        @_flowtrainable $T fieldnames($T)
+        @select_trainables $T fieldnames($T)
     end)
 end
 
@@ -55,7 +55,7 @@ end
 macro auto_flow(T, fields)
     return esc(quote
         @_flowlayer $T
-        @_flowtrainable $T $fields
+        @select_trainables $T $fields
     end)
 end
 

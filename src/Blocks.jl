@@ -94,10 +94,10 @@ function CouplingBlock(
 end
 
 CouplingBlock(axes::CouplingAxes; kws...) = CouplingBlock(RNVPCouplingLayer, axes; kws...)
-#CouplingBlock(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = CouplingBlock(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
-#CouplingBlock(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = CouplingBlock(CouplingAxes(d, mask, n=n); kws...)
-#CouplingBlock(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingBlock(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
-#CouplingBlock(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:CouplingLayer} = CouplingBlock(CouplingAxes(d, mask, n=n); kws...)
+CouplingBlock(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = CouplingBlock(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+CouplingBlock(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = CouplingBlock(CouplingAxes(d, mask, n=n); kws...)
+CouplingBlock(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingBlock(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+CouplingBlock(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:CouplingLayer} = CouplingBlock(CouplingAxes(d, mask, n=n); kws...)
 
 
 ##########################################################

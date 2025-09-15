@@ -36,6 +36,7 @@ struct CouplingAxes
     
 end
 
+@select_trainables CouplingAxes []
 
 function _print(obj::CouplingAxes)
     print("(d,n)=($(obj.d),$(obj.n)), id=$(obj.axis_id), af=$(obj.axis_af)")
