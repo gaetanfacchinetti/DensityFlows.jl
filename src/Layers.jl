@@ -95,9 +95,9 @@ By default `s` and `t` are built with `Dense` neural networks.
 # Example
 ```jldoctest
 julia> @summary CouplingLayer(3, [1, 3], n=2, hidden_dim=10, n_sublayers_s=1, σ=Flux.tanh)
-• RNVPCouplingLayer > s_net: [3, 10, 2] (62 parameters)
-• RNVPCouplingLayer > t_net: [3, 10, 10, 2] (172 parameters)
-• RNVPCouplingLayer > axes: (d,n)=(3,2), id=[2], af=[1, 3]
+RNVPCouplingLayer | s_net > [3, 10, 2] (62 parameters)
+                  | t_net > [3, 10, 10, 2] (172 parameters)
+                  | axes  > (d,n)=(3,2); identity=(2), transformed=(1,3)
 ```
 
 See also [`CouplingAxes`](@ref).

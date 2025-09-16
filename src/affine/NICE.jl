@@ -35,4 +35,4 @@ struct NICECouplingLayer{T<:Flux.Chain} <: CouplingLayer
     
 end
 
-@auto_flow NICECouplingLayer [:t_net]
+Flux.@layer NICECouplingLayer trainable=(t_net,)

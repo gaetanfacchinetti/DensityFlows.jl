@@ -32,7 +32,7 @@ export FlowChain, FlowChainAffine, concatenate, +
 
 @doc raw"""
     
-    backward(f, x, θ=nothing)
+    backward(f, x [, θ=dflt_θ(x)])
 
 Return ``f^{-1}(x \,|\, \theta)`` and ``J_{f^{-1}}(x \,| \,\theta)`` where ``\theta`` is an array of parameters.
 
@@ -46,7 +46,7 @@ function backward end
 
 @doc raw"""
     
-    forward(f, z, θ=nothing)
+    forward(f, z [, θ=dflt_θ(z)])
 
 Return ``f(z  \,| \,\theta)`` and ``J_{f}(z \,| \,\theta)`` where ``\theta`` is an array of parameters.
 
@@ -60,7 +60,7 @@ function forward end
 
 @doc raw"""
     
-    forward!(f, z, θ=nothing)
+    forward!(f, z [, θ=dflt_θ(z)])
 
 Replace `z` by ``f(z  \,| \,\theta)`` where ``\theta`` is an array of parameters.
 
@@ -79,10 +79,8 @@ struct FlowChain{T<:Union{Tuple, AbstractVector}} <: FlowElement
     layers::T
 end
 
-@auto_flow FlowChain 
+Flux.@layer FlowChain 
 @auto_functor FlowChain
-
-#Optimisers.trainable(m::FlowChain) = (; layers = Tuple([Optimisers.trainable(v) for v ∈ m]))
 
 @doc raw"""
 
@@ -135,9 +133,9 @@ end
 
 
 # making a nicer show function
-function _print(obj::FlowChain)
+function summarize(obj::FlowChain)
     for layer ∈ obj
-        _print(layer)
+        summarize(layer)
     end
 end
 
@@ -145,7 +143,7 @@ end
 function backward(
     chain::FlowChain, 
     x::AbstractArray{T},
-    θ::AbstractArray{T} = dflt_θ(x)
+    θ::AbstractArray{T}
     ) where {T}
 
     n = length(chain)
@@ -164,7 +162,7 @@ end
 function forward(
     chain::FlowChain, 
     z::AbstractArray{T},
-    θ::AbstractArray{T} = dflt_θ(z)
+    θ::AbstractArray{T}
     ) where {T}
 
     n = length(chain)
@@ -183,7 +181,7 @@ end
 function forward!(
     chain::FlowChain, 
     z::AbstractArray{T},
-    θ::AbstractArray{T} = dflt_θ(z)
+    θ::AbstractArray{T}
     )  where {T}
 
     for i ∈ eachindex(chain.layers)

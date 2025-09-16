@@ -47,7 +47,7 @@ struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: CouplingLayer
 end
 
 # make the coupling layer parameters trainable
-@auto_flow RNVPCouplingLayer #[:s_net, :t_net]
+Flux.@layer RNVPCouplingLayer trainable=(s_net, t_net)
 
 # create a functor function to call RNVPCouplingLayer(...) 
 # in place of forward(::RNVPCouplingLayer, ...) if wanted
@@ -55,14 +55,16 @@ end
 
 
 # Define a custom show function
-function _print(obj::RNVPCouplingLayer)
+function summarize(obj::RNVPCouplingLayer)
 
     dim_s_net = [size(obj.s_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.layers]...]
     dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
 
-    println("• RNVPCouplingLayer > s_net: $dim_s_net ($(sum(length, Flux.trainables(obj.s_net))) parameters)")
-    println("• RNVPCouplingLayer > t_net: $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
-    println("• RNVPCouplingLayer > axes: $(obj.axes)")
+    println("RNVPCouplingLayer | s_net > $dim_s_net ($(sum(length, Flux.trainables(obj.s_net))) parameters)")
+    println("                  | t_net > $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
+    print("                  | axes  > ")
+    summarize(obj.axes)
+    println("")
 end
 
 @doc raw"""
@@ -141,7 +143,7 @@ end
 function backward(
     layer::RNVPCouplingLayer, 
     x::AbstractArray{T}, 
-    θ::AbstractArray{T} = dflt_θ(x)
+    θ::AbstractArray{T}
     ) where {T}
 
     # define the input from the
@@ -159,7 +161,7 @@ end
 function forward(
     layer::RNVPCouplingLayer, 
     z::AbstractArray{T}, 
-    θ::AbstractArray{T} = dflt_θ(z)
+    θ::AbstractArray{T}
     ) where {T}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
@@ -181,7 +183,7 @@ end
 function forward!(
     layer::RNVPCouplingLayer, 
     z::AbstractArray{T}, 
-    θ::AbstractArray{T} = dflt_θ(z)
+    θ::AbstractArray{T}
     ) where {T}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
@@ -192,6 +194,7 @@ function forward!(
     z_af = selectdim(z, 1, layer.axes.axis_af)
     z_af .= z_af .* exp.(s) .+ t
 
+    return nothing
 end
 
 

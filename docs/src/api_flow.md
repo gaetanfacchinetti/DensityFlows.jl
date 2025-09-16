@@ -9,8 +9,6 @@ CollapsedDocStrings = true
 
 ```@docs
 FlowChain
-FlowChainAffine
-+
 concatenate
 ```
 

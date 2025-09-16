@@ -11,15 +11,15 @@ CollapsedDocStrings = true
 ```@docs
 Flow
 FlowElement
+summarize
 ```
 
 The hierarchy of types can be visualised from the following outputs  
 
 ```@repl
 using DensityFlows
-AffineCouplingElement <: FlowElement
-AffineCouplingLayer <: AffineCouplingElement
-RNVPCouplingLayer <: AffineCouplingLayer
+CouplingLayer <: FlowElement
+RNVPCouplingLayer <: CouplingLayer
 ```
 
 
@@ -42,7 +42,7 @@ load
 ## Macros
 
 ```@docs
-@auto_flow
-@auto_forward
+@auto_forward!
 @auto_functor
+@summary
 ```

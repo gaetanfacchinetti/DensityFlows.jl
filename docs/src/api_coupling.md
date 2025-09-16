@@ -8,10 +8,10 @@ CollapsedDocStrings = true
 
 ## Axes
 
-Axes define and manipulate dimensions on which the [`AffineCouplingElement`](@ref) operates. Some dimensions are left unchanged while the others undergo an affine transformation.
+Axes define and manipulate dimensions on which the [`CouplingLayer`](@ref) operates. Some dimensions are left unchanged while the others undergo an affine transformation.
 
 ```@docs
-AffineCouplingAxes
+CouplingAxes
 ```
 
 Axes can be manipulated with the following functions.
@@ -24,9 +24,8 @@ Base.reverse
 ## Coupling elements
 
 ```@docs
-AffineCouplingElement
-AffineCouplingLayer
-AffineCouplingBlock
+CouplingLayer
+CouplingBlock
 RNVPCouplingLayer
 ```
 

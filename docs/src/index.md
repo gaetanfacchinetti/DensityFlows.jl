@@ -1,11 +1,7 @@
 # Overview
 
-```jldoctest
-julia> AffineCouplingElement <: FlowElement
-true
-```
 
 ```jldoctest
-julia> AffineCouplingLayer <: AffineCouplingElement
+julia> CouplingLayer <: FlowElement
 true
 ```

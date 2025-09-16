@@ -67,26 +67,17 @@ end
 
 @doc raw"""
 
-    MetaData(hash, x_min, x_max, θ_min, θ_max)
+    MetaData(hash, θ_min, θ_max)
 
-Metadata containing an identification hash value and the boundaries of the
-data and parameters arrays x and θ.
+Metadata containing an identification hash value and the boundaries of the parameters array θ.
 """
 struct MetaData{T<:AbstractVector}
     hash::String
-
-    x_min::T
-    x_max::T
 
     θ_min::T
     θ_max::T
 end
 
-@doc raw"""Minimum value of the input data."""
-data_x_min(metadata::MetaData) = metadata.x_min
-
-@doc raw"""Maximum value of the input data."""
-data_x_max(metadata::MetaData) = metadata.x_max
 
 @doc raw"""Minimin value of the input parameters."""
 data_θ_min(metadata::MetaData) = metadata.θ_min
@@ -133,8 +124,6 @@ end
 struct DataArrays{T, N, A<:AbstractArray{T, N}, B<:AbstractVector{<:Int}, C<:AbstractVector{T}}
 
     x::A # raw data
-    y::A # normalized data
-    
     θ::A # raw parameters
     t::A # normalised parameters
       
@@ -145,7 +134,7 @@ end
 
 @doc raw"""
 
-    DataArrays(x, θ = nothing, f_training = 0.9, f_validation = 0.1, rng = Random.default_rng())
+    DataArrays(x; θ = dflt_θ(x), f_training = 0.9, f_validation = 0.1, rng = Random.default_rng())
 
 Normalised and partitioned data to feed the neural network.
 
@@ -160,49 +149,35 @@ other array dimensions in place of `...` should match that of `x`.
 See also [`DataPartition`](@ref) and [`MetaData`](@ref).
 """
 function DataArrays(
-    x::AbstractArray{T, N}, 
-    θ::Union{AbstractArray{T, N}, Nothing} = nothing,
+    x::AbstractArray{T, N}; 
+    θ::AbstractArray{T, N} = dflt_θ(x),
     f_training::Real = 0.9, 
     f_validation::Real = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T, N}
     
-    x_min = vec(minimum(x, dims=2:N))
-    x_max = vec(maximum(x, dims=2:N))
 
-    y = normalize_input(x, x_min, x_max)
+    θ_min = vec(minimum(θ, dims=2:N))
+    θ_max = vec(maximum(θ, dims=2:N))
 
-    if θ !== nothing
-        
-        θ_min = vec(minimum(θ, dims=2:N))
-        θ_max = vec(maximum(θ, dims=2:N))
+    t = normalize_input(θ, θ_min, θ_max)
 
-        t = normalize_input(θ, θ_min, θ_max)
-    else
+    partition = DataPartition(size(x, 2), f_training, f_validation, rng)
+    metadata  = MetaData("", θ_min, θ_max)
 
-        θ = Array{T, N}(undef, 0, size(x)[2:end]...)
-        t = Array{T, N}(undef, 0, size(x)[2:end]...)
-
-        θ_min = vec(minimum(θ, dims=2:N))
-        θ_max = vec(maximum(θ, dims=2:N))
-    end
-
-    partition = DataPartition(size(y, 2), f_training, f_validation, rng)
-    metadata = MetaData("", x_min, x_max, θ_min, θ_max)
-
-    return DataArrays(x, y, θ, t, partition, metadata)
+    return DataArrays(x, θ, t, partition, metadata)
 
 end
 
-function Base.show(io::IO, obj::DataArrays)
-    println(io, "Data with size $(size(obj.x)) and parameters / conditions with size $(size(obj.θ)).")
-    println(io, "-> f_training = $(length(obj.partition.training)/size(obj.x, 2)), f_validation = $(length(obj.partition.validation)/size(obj.x, 2)).")
+function summarize(obj::DataArrays)
+    println("Data with size $(size(obj.x)) and parameters / conditions with size $(size(obj.θ)).")
+    println("-> f_training = $(length(obj.partition.training)/size(obj.x, 2)), f_validation = $(length(obj.partition.validation)/size(obj.x, 2)).")
 end
 
 
-training_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.training, ntuple(_ -> :, N-2)...], data.t[:, data.partition.training, ntuple(_ -> :, N-2)...]
-validation_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.validation, ntuple(_ -> :, N-2)...], data.t[:, data.partition.validation, ntuple(_ -> :, N-2)...]
-testing_data(data::DataArrays{T, N}) where {T, N} = data.y[:, data.partition.testing, ntuple(_ -> :, N-2)...], data.t[:, data.partition.testing, ntuple(_ -> :, N-2)...]
+training_data(data::DataArrays{T, N}) where {T, N} =  selectdim(data.x, 2, data.partition.training), selectdim(data.t, 2, data.partition.training)# data.x[:, data.partition.training, ntuple(_ -> :, N-2)...], data.t[:, data.partition.training, ntuple(_ -> :, N-2)...]
+validation_data(data::DataArrays{T, N}) where {T, N} = data.x[:, data.partition.validation, ntuple(_ -> :, N-2)...], data.t[:, data.partition.validation, ntuple(_ -> :, N-2)...]
+testing_data(data::DataArrays{T, N}) where {T, N} = data.x[:, data.partition.testing, ntuple(_ -> :, N-2)...], data.t[:, data.partition.testing, ntuple(_ -> :, N-2)...]
 
 @doc raw"""
 

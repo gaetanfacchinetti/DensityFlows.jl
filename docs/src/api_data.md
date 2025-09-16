@@ -22,8 +22,6 @@ dflt_θ
 ```
 
 ```@docs
-data_x_min
-data_x_max
 data_θ_min
 data_θ_max
 normalize_input

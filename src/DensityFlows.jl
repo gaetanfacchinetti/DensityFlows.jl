@@ -40,11 +40,20 @@ import ChainRulesCore: rrule
 import Distributions: sample, logpdf, pdf
 import Flux: Dense
 
-export FlowElement, CouplingLayer
+export FlowElement, CouplingLayer, summarize
 
 @doc raw""" Building blocks of the flow """ 
 abstract type FlowElement end
 abstract type CouplingLayer <: FlowElement end
+
+# default behaviour for summarize
+@doc raw"""
+
+    summarize(element)
+
+Print a summary for the [`FlowElement`](@ref) `element`.
+"""
+summarize(element::FlowElement) = println(element)
 
 
 include("./Macros.jl")
@@ -52,10 +61,15 @@ include("./Data.jl")
 include("./Axes.jl")
 include("./affine/RNVP.jl")
 include("./affine/NICE.jl")
+include("./norm/Normalization.jl")
 include("./Layers.jl")
 include("./Blocks.jl")
 include("./Chains.jl")
 include("./Flows.jl")
 include("./Loading.jl")
+
+backward(element::FlowElement, x::AbstractArray) = backward(element, x, dflt_θ(x))
+forward(element::FlowElement,  z::AbstractArray) = forward(element,  z, dflt_θ(z))
+forward!(element::FlowElement, z::AbstractArray) = forward!(element, z, dflt_θ(z))
 
 end

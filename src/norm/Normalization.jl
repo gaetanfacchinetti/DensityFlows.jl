@@ -23,6 +23,7 @@
 #
 ##################################################################################
 
+export NormalizationElement, NormalizationLayer
 
 abstract type NormalizationElement <: FlowElement end
 
@@ -37,7 +38,7 @@ function NormalizationLayer(x::AbstractArray{T, N}) where {T, N}
     return NormalizationLayer(x_min, x_max)
 end
 
-@auto_flow NormalizationLayer []
+Flux.@layer NormalizationLayer trainable=()
 @auto_functor NormalizationLayer
 
 function DensityFlows.backward(
@@ -71,11 +72,11 @@ function DensityFlows.forward!(
     θ::AbstractArray{T}
     ) where {T}
 
-    z = (nlayer.x_max .- nlayer.x_min) .* z  .+ nlayer.x_min 
-
+    z .= (nlayer.x_max .- nlayer.x_min) .* z  .+ nlayer.x_min 
+    return nothing
 end
 
 
-function Base.show(io::IO, obj::NormalizationLayer, n::Int = 1)
-    println(io, "• Normalization Layer")
+function summarize(obj::NormalizationLayer)
+    println("Normalization Layer")
 end

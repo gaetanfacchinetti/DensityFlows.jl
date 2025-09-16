@@ -36,12 +36,11 @@ struct CouplingAxes
     
 end
 
-@select_trainables CouplingAxes []
-
-function _print(obj::CouplingAxes)
-    print("(d,n)=($(obj.d),$(obj.n)), id=$(obj.axis_id), af=$(obj.axis_af)")
+function summarize(obj::CouplingAxes)
+    str_axis_af = length(obj.axis_af) > 0 ? *([string(v) * "," for v in obj.axis_af]...)[1:end-1] : ""
+    str_axis_id = length(obj.axis_id) > 0 ? *([string(v) * "," for v in obj.axis_id]...)[1:end-1] : ""
+    print("(d,n)=($(obj.d),$(obj.n)); identity=($str_axis_id), transformed=($str_axis_af)")
 end
-
 
 
 @doc raw"""

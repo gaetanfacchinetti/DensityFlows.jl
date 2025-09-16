@@ -49,9 +49,9 @@ end
 get_type(flow::Flow{T}) where {T} = T
 
 
-function _print(obj::Flow)
+function summarize(obj::Flow)
     println("- model --------------------")
-    _print(obj.model)
+    summarize(obj.model)
     println("- base distribution --------")
     println("• " * string(Base.typename(typeof(obj.base)).wrapper))
 end
@@ -99,50 +99,24 @@ end
 
 
 
-backward(flow::Flow, y::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T} = backward(flow.model, y, t)
-forward(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T} = forward(flow.model, z, t)
-
-@inline function forward!(flow::Flow, z::AbstractArray{T}, t::Union{AbstractArray{T}, Nothing} = nothing) where {T}
-    forward!(flow.model, z, t)
+macro def_flow_wrappers(funcs...)
+    return esc(Expr(:block, 
+    [quote
+        $f(flow::Flow, y::AbstractArray) = $f(flow.model, y)
+        function $f(flow::Flow, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
+            $f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
+        end
+    end 
+    for f in funcs]...))
 end
 
 
-
-# work with the non renormalised quantities here
-function predict(
-    flow::Flow, 
-    z::AbstractArray{T}, 
-    θ::AbstractArray{T} = dflt_θ(z)
-    ) where {T}
-    
-    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
-    return resize_output(forward(flow, z, t)[1], flow.metadata.x_min, flow.metadata.x_max)
-end
+@def_flow_wrappers backward forward forward!
 
 
-# work with the non renormalised quantities here
-function predict!(
-    flow::Flow{T}, 
-    z::AbstractArray{T}, 
-    θ::AbstractArray{T} = dflt_θ(z)
-    ) where {T}
-    
-    if θ === nothing
-        forward!(flow, z, nothing)
-        resize_output!(z, flow.metadata.x_min, flow.metadata.x_max)
-        return
-    end
-
-    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max) 
-
-    # compute the forward pass
-    forward!(flow, z, t) 
-
-    # resize the output to the non normalised scales
-    resize_output!(z, flow.metadata.x_min, flow.metadata.x_max)
-
-end
-
+# define a predict function
+predict(flow::Flow, z::AbstractArray) = forward(flow, z)[1]
+predict(flow::Flow, z::AbstractArray{T}, θ::AbstractArray{T}) where {T} = forward(flow, z, θ)[1]
 
 
 function sample(
@@ -153,7 +127,7 @@ function sample(
     ) where {T}
 
     r = rand(rng, flow.base, n)
-    predict!(flow, r, θ)
+    forward!(flow, r, θ)
     
     return r
 
@@ -173,16 +147,11 @@ function logpdf(
     θ::AbstractArray{T} = dflt_θ(x)
     ) where {T}
 
-    y = normalize_input(x, flow.metadata.x_min, flow.metadata.x_max)
-
-    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
-    z, ln_det_jac = backward(flow, y, t)
-    
-    ln_grad_norm = log.(grad_normalisation(flow.metadata.x_min, flow.metadata.x_max))
-
-    return Distributions.logpdf(flow.base, z)  .+ ln_det_jac  .+  sum(ln_grad_norm)
+    z, ln_det_jac = backward(flow, x, θ)
+    return Distributions.logpdf(flow.base, z)  .+ ln_det_jac
 
 end
+
 
 @doc raw"""
     
@@ -231,11 +200,11 @@ function train!(
 
     for _ in 1:epochs
         
-        for (y_batch, t_batch) in train_loader
+        for (x_batch, t_batch) in train_loader
 
             grads = Flux.gradient(flow.model) do m
             
-                z, ln_det_jac = backward(m, y_batch, t_batch)
+                z, ln_det_jac = backward(m, x_batch, t_batch)
                 l = loss(z, ln_det_jac, flow.base)
 
                 # debugging if loss gets NaN
