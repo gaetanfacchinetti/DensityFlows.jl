@@ -71,19 +71,25 @@ end
 
 Metadata containing an identification hash value and the boundaries of the parameters array θ.
 """
-struct MetaData{T<:AbstractVector}
+struct MetaData{T, U<:AbstractVector{T}}
+    
     hash::String
 
-    θ_min::T
-    θ_max::T
+    # same information as in the
+    d::Int
+    n::Int
+
+    θ_min::U
+    θ_max::U
+
 end
 
 
 @doc raw"""Minimin value of the input parameters."""
-data_θ_min(metadata::MetaData) = metadata.θ_min
+minimum_θ(metadata::MetaData) = metadata.θ_min
 
 @doc raw"""Maximum value of the input parameters."""
-data_θ_max(metadata::MetaData) = metadata.θ_max
+maximum_θ(metadata::MetaData) = metadata.θ_max
 
 
 struct DataPartition{T<:AbstractVector{Int}}
@@ -121,20 +127,18 @@ function DataPartition(
 end
 
 
-struct DataArrays{T, N, A<:AbstractArray{T, N}, B<:AbstractVector{<:Int}, C<:AbstractVector{T}}
+struct DataArrays{T, N, A<:AbstractArray{T, N}, B<:AbstractVector{<:Int}}
 
     x::A # raw data
     θ::A # raw parameters
-    t::A # normalised parameters
       
     partition::DataPartition{B}
-    metadata::MetaData{C}
 
 end
 
 @doc raw"""
 
-    DataArrays(x; θ = dflt_θ(x), f_training = 0.9, f_validation = 0.1, rng = Random.default_rng())
+    DataArrays(x, θ = dflt_θ(x); f_training = 0.9, f_validation = 0.1, rng = Random.default_rng())
 
 Normalised and partitioned data to feed the neural network.
 
@@ -149,25 +153,21 @@ other array dimensions in place of `...` should match that of `x`.
 See also [`DataPartition`](@ref) and [`MetaData`](@ref).
 """
 function DataArrays(
-    x::AbstractArray{T, N}; 
-    θ::AbstractArray{T, N} = dflt_θ(x),
+    x::AbstractArray{T, N}, 
+    θ::AbstractArray{T, N} = dflt_θ(x);
     f_training::Real = 0.9, 
     f_validation::Real = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T, N}
+
+    @assert length(size(x)) >= 2 "data must be an array of size (d, i1, ...) at least"
+    @assert all(size(x)[2:N] .== size(θ)[2:N]) "x and θ must have the same size -- except for the first dimension"
     
-
-    θ_min = vec(minimum(θ, dims=2:N))
-    θ_max = vec(maximum(θ, dims=2:N))
-
-    t = normalize_input(θ, θ_min, θ_max)
-
     partition = DataPartition(size(x, 2), f_training, f_validation, rng)
-    metadata  = MetaData("", θ_min, θ_max)
-
-    return DataArrays(x, θ, t, partition, metadata)
+    return DataArrays(x, θ, partition)
 
 end
+
 
 function summarize(obj::DataArrays)
     println("Data with size $(size(obj.x)) and parameters / conditions with size $(size(obj.θ)).")
@@ -175,9 +175,18 @@ function summarize(obj::DataArrays)
 end
 
 
-training_data(data::DataArrays{T, N}) where {T, N} =  selectdim(data.x, 2, data.partition.training), selectdim(data.t, 2, data.partition.training)# data.x[:, data.partition.training, ntuple(_ -> :, N-2)...], data.t[:, data.partition.training, ntuple(_ -> :, N-2)...]
-validation_data(data::DataArrays{T, N}) where {T, N} = data.x[:, data.partition.validation, ntuple(_ -> :, N-2)...], data.t[:, data.partition.validation, ntuple(_ -> :, N-2)...]
-testing_data(data::DataArrays{T, N}) where {T, N} = data.x[:, data.partition.testing, ntuple(_ -> :, N-2)...], data.t[:, data.partition.testing, ntuple(_ -> :, N-2)...]
+number_dimensions(data::DataArrays) = size(data.x, 1)
+number_conditions(data::DataArrays) = size(data.θ, 1)
+
+minimum_θ(data::DataArrays{T, N}) where {T, N} = vec(minimum(data.θ, dims=2:N))
+maximum_θ(data::DataArrays{T, N}) where {T, N} = vec(maximum(data.θ, dims=2:N))
+
+training_data(data::DataArrays)   = selectdim(data.x, 2, data.partition.training),   selectdim(data.θ, 2, data.partition.training) 
+validation_data(data::DataArrays) = selectdim(data.x, 2, data.partition.validation), selectdim(data.θ, 2, data.partition.validation)
+testing_data(data::DataArrays)    = selectdim(data.x, 2, data.partition.testing),    selectdim(data.θ, 2, data.partition.testing)
+
+
+
 
 @doc raw"""
 

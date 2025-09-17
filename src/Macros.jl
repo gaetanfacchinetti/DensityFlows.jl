@@ -27,49 +27,6 @@
 export  @auto_forward!, @auto_functor, @summary #, @select_trainables, @auto_flow
 
 
-#macro select_trainables(T, fields)
-#    return esc(quote
-#        # Specify exactly what are the trainable parameters
-#        function Optimisers.trainable(m::$T)
-#            return (; (field => Optimisers.trainable(getfield(m, field)) for field in $fields)...)
-#        end
-#    end)
-#end
-
-# macro _flowlayer(T)
-#     return esc(quote
-#         Flux.@layer $T
-#         Functors.@functor $T
-#     end)
-# end
-
-# macro auto_flow(T)
-#     return esc(quote
-#         @_flowlayer $T
-#         @select_trainables $T fieldnames($T)
-#     end)
-# end
-
-
-# macro auto_flow(T, fields)
-#     return esc(quote
-#         @_flowlayer $T
-#         @select_trainables $T $fields
-#     end)
-# end
-
-
-# @doc raw"""
-
-#     auto_flow(T [, fields])
-
-# Automatically makes type `T` a `Flux` layer with trainable
-# parameters `fields` (array of `Symbols`). If no `fields` is passed 
-# all fields are assumed to be trainable if they can be. 
-# """
-# macro auto_flow end
-
-
 @doc raw"""
 
     auto_forward!(T)
@@ -129,3 +86,74 @@ Call [`summarize`](@ref)(`element`).
 macro summary(obj)
     return :(summarize($(esc(obj))))
 end
+
+
+
+macro flow_wrapper(funcs...)
+    return esc(Expr(:block, 
+    [quote
+        #$f(flow::Flow, y::AbstractArray) = $f(flow.model, y)
+        function $f(flow::Flow, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
+            $f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
+        end
+    end 
+    for f in funcs]...))
+end
+
+
+@doc raw"""
+
+    unconditional_wrapper(funcs...)
+
+Define the unconditional version of a function with signature
+f(::Flow, ::AbstractArray, ::AbstractArray) or
+f(::FlowElement, ::AbstractArray, ::AbstractArray).
+
+Replace f(obj, y, θ) = f(obj, y, dflt_θ(y))
+"""
+macro unconditional_wrapper(funcs...)
+    return esc(Expr(:block, [quote $f(obj::Union{FlowElement, Flow{T}}, y::AbstractArray{T}) where {T} = $f(obj, y, dflt_θ(y)) end for f in funcs]...))
+end
+
+
+#macro select_trainables(T, fields)
+#    return esc(quote
+#        # Specify exactly what are the trainable parameters
+#        function Optimisers.trainable(m::$T)
+#            return (; (field => Optimisers.trainable(getfield(m, field)) for field in $fields)...)
+#        end
+#    end)
+#end
+
+# macro _flowlayer(T)
+#     return esc(quote
+#         Flux.@layer $T
+#         Functors.@functor $T
+#     end)
+# end
+
+# macro auto_flow(T)
+#     return esc(quote
+#         @_flowlayer $T
+#         @select_trainables $T fieldnames($T)
+#     end)
+# end
+
+
+# macro auto_flow(T, fields)
+#     return esc(quote
+#         @_flowlayer $T
+#         @select_trainables $T $fields
+#     end)
+# end
+
+
+# @doc raw"""
+
+#     auto_flow(T [, fields])
+
+# Automatically makes type `T` a `Flux` layer with trainable
+# parameters `fields` (array of `Symbols`). If no `fields` is passed 
+# all fields are assumed to be trainable if they can be. 
+# """
+# macro auto_flow end

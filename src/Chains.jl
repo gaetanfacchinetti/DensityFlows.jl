@@ -184,7 +184,7 @@ function forward!(
     θ::AbstractArray{T}
     )  where {T}
 
-    for i ∈ eachindex(chain.layers)
+    @inbounds for i ∈ eachindex(chain.layers)
         forward!(chain[i], z, θ)
     end
 

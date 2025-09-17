@@ -68,8 +68,8 @@ include("./Chains.jl")
 include("./Flows.jl")
 include("./Loading.jl")
 
-backward(element::FlowElement, x::AbstractArray) = backward(element, x, dflt_θ(x))
-forward(element::FlowElement,  z::AbstractArray) = forward(element,  z, dflt_θ(z))
-forward!(element::FlowElement, z::AbstractArray) = forward!(element, z, dflt_θ(z))
+@flow_wrapper backward forward forward!
+@unconditional_wrapper backward forward forward!
+@unconditional_wrapper predict pdf logpdf
 
 end

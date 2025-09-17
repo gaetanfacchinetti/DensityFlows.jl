@@ -39,14 +39,14 @@ struct Flow{T, M<:FlowChain, D<:Distributions.Distribution, U<:AbstractArray{T}}
     model::M
     base::D
 
-    metadata::MetaData{U}
+    metadata::MetaData{T, U}
 
     train_loss::Vector{T}
     valid_loss::Vector{T}
 
 end
 
-get_type(flow::Flow{T}) where {T} = T
+@auto_functor Flow
 
 
 function summarize(obj::Flow)
@@ -57,72 +57,63 @@ function summarize(obj::Flow)
 end
 
 
+
 function Flow(
-    model::FlowChain, 
     base::Distributions.Distribution, 
+    model::FlowChain, 
     data::DataArrays{T}, 
     train_loss::Vector{T}, 
     valid_loss::Vector{T}
     ) where {T}
+
+    # get the relevant information for the flow
+    # and store them in a metadata attribute
+    d = number_dimensions(data)
+    n = number_conditions(data)
+    θ_min = minimum_θ(data)
+    θ_max = maximum_θ(data)
+
+    metadata = MetaData("", d, n, θ_min, θ_max)
    
-    return  Flow(model, base, data.metadata, train_loss, valid_loss)
+    return Flow(model, base, metadata, train_loss, valid_loss)
 
 end
-
-
-Flow(model::FlowChain, base::Distributions.Distribution, data::DataArrays{T}) where {T} = Flow(model, base, data.metadata, T[], T[]) 
-
 
 function Flow(
-    n_couplings::Int,
+    model::FlowChain, 
     data::DataArrays{T}, 
-    ::Type{U} = CouplingBlock,
-    base::Union{Distributions.Distribution, Nothing} = nothing;
-    kws...
-    ) where {T, U<:FlowElement}
-    
-    # the dimension is given by the size of x_min
-    d = size(data.metadata.x_min, 1)
-    n = size(data.metadata.θ_min, 1)
+    train_loss::Vector{T}, 
+    valid_loss::Vector{T}
+    ) where {T}
 
-    # by default build an AffineCouplingFlow
-    axes = CouplingAxes(d, n)
-    chain = FlowChain(n_couplings, axes, U; kws...)
+    # get the relevant information for the flow
+    # and store them in a metadata attribute
+    d = number_dimensions(data)
+    n = number_conditions(data)
+    θ_min = minimum_θ(data)
+    θ_max = maximum_θ(data)
 
-    if base === nothing
-        base = Distributions.MvNormal(zeros(T, d), LinearAlgebra.diagm(ones(T, d)))
-    end
+    metadata = MetaData("", d, n, θ_min, θ_max)
 
-    return Flow(chain, base, data.metadata, T[], T[])
+    base = Distributions.MvNormal(zeros(T, d), LinearAlgebra.diagm(ones(T, d)))
+   
+    return Flow(model, base, metadata, train_loss, valid_loss)
 
 end
 
 
-
-macro def_flow_wrappers(funcs...)
-    return esc(Expr(:block, 
-    [quote
-        $f(flow::Flow, y::AbstractArray) = $f(flow.model, y)
-        function $f(flow::Flow, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
-            $f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
-        end
-    end 
-    for f in funcs]...))
-end
+Flow(base::Distributions.Distribution, model::FlowChain, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
+Flow(model::FlowChain, data::DataArrays{T}) where {T} = Flow(model, data, T[], T[]) 
 
 
-@def_flow_wrappers backward forward forward!
-
-
-# define a predict function
-predict(flow::Flow, z::AbstractArray) = forward(flow, z)[1]
-predict(flow::Flow, z::AbstractArray{T}, θ::AbstractArray{T}) where {T} = forward(flow, z, θ)[1]
+# define a predict function that is the same as the forward function
+predict(flow::Flow{T}, z::AbstractArray{T}, θ::AbstractArray{T}) where {T} = forward(flow, z, θ)[1]
 
 
 function sample(
     flow::Flow{T},
     n::Int = 1,
-    θ::AbstractArray{T} = dflt_θ(get_type(flow), n),
+    θ::AbstractArray{T} = dflt_θ(T, n),
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T}
 
@@ -132,6 +123,7 @@ function sample(
     return r
 
 end
+
 
 @doc raw"""
     
@@ -144,7 +136,7 @@ See also [`pdf`](@ref).
 function logpdf(
     flow::Flow{T},
     x::AbstractArray{T},
-    θ::AbstractArray{T} = dflt_θ(x)
+    θ::AbstractArray{T}
     ) where {T}
 
     z, ln_det_jac = backward(flow, x, θ)
@@ -153,9 +145,11 @@ function logpdf(
 end
 
 
+
+
 @doc raw"""
     
-    pdf(flow, x, θ = nothing)
+    pdf(flow, x, θ = dflt_θ(x))
 
 Probability density function given by the flow.
 
@@ -164,13 +158,12 @@ See also [`logpdf`](@ref).
 function pdf(
     flow::Flow{T},
     x::AbstractArray{T},
-    θ::AbstractArray{T} = dflt_θ(x)
+    θ::AbstractArray{T}
     ) where {T}
 
     return exp(logpdf(flow, x, θ))
 
 end
-
 
 
 @inline function loss(
