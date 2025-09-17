@@ -177,23 +177,24 @@ end
 
 
 function train!(
-    flow::Flow,
-    data::DataArrays, 
+    flow::Flow{T},
+    data::DataArrays{T}, 
     optimiser_state::NamedTuple; 
     epochs::Int=100,
     batchsize=64,
     shuffle=true,
     verbose::Bool=true,
     debug::Bool=false
-)
+    ) where {T}
+    
     train_data = training_data(data)
     valid_data = validation_data(data)
     
     train_loader = Flux.DataLoader(train_data; batchsize=batchsize, shuffle=shuffle)
 
-    for _ in 1:epochs
+    for _ ∈ 1:epochs
         
-        for (x_batch, t_batch) in train_loader
+        for (x_batch, t_batch) ∈ train_loader
 
             grads = Flux.gradient(flow.model) do m
             

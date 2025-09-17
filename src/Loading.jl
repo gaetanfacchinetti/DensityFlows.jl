@@ -47,64 +47,19 @@ function make_dir(path::AbstractString; erase::Bool = false)
                        
 end
 
+is_atomic(element::Any) = false
+is_atomic(::Type{T}) where {T<:Any} = false
 
 get_type(::Type{T}) where {T} = string(Base.typename(T).wrapper)
 
 
-###########################################################
-## Save / load CouplingAxes
-
-function save(filename::String, axes::CouplingAxes)
-
-    try
-        JLD2.jldsave(filename * ".jld2"; Dict(field => getfield(axes, field)  for field in fieldnames(CouplingAxes))...)
-    catch e
-        println("Impossible to save the axes")
-        rethrow(e)
-    end
-
-end
-
-function load(filename::String, ::Type{CouplingAxes})
-
-    try
-        data = JLD2.jldopen(filename * ".jld2")
-        return CouplingAxes([data[k] for k in string.(fieldnames(CouplingAxes))]...)
-    catch e
-        println("Impossible to load CouplingAxes at $filename")
-        rethrow(e)
-    end
-
-end
-
 
 #########################################################
-## Save / load arrays
+# automatic save
 
-function save(filename::String, array::AbstractArray)
-    
-    try
-        JLD2.jldsave(filename * ".jld2"; array)
-    catch e
-        println("Impossible to save the normalization")
-        rethrow(e)
-    end
-
-end
-
-
-function load(filename::String, ::Type{AbstractArray})
-
-    try
-        data = JLD2.jldopen(filename * ".jld2")
-        return data["array"]
-    catch e
-        println("Impossible to load NormalizationLayer at $filename")
-        rethrow(e)
-    end
-
-end
-
+@auto_save CouplingAxes
+@auto_save NormalizationLayer
+@auto_save MetaData
 
 
 ###########################################################
@@ -159,30 +114,60 @@ end
 
 Recursively save the [`FlowElement`](@ref) `element`'s weights in `directory`.
 
-Setting `erase = true` force deleted any existing directory with the same name.
+Setting `erase = true` force deletes any existing directory with the same name.
 """
 function save(directory::String, element::T; erase::Bool = false) where {T<:FlowElement}
 
     make_dir(directory, erase = erase)
-    filename = directory * "/" * get_type(T) * "_"
+    filename = directory * "/" * get_type(T)
 
-    for field in fieldnames(T)
+    # if the element itself is atomic simply save it
+    if is_atomic(element) 
+        _save(filename, element)
+    else
+        for field in fieldnames(T)
 
-        value = getfield(element, field)
+            value = getfield(element, field)
 
-        # if the element is a FlowChain 
-        # directly save the sub-elements of the array
-        if element isa FlowChain
-            for (il, sub_element) in enumerate(value)
-                save(filename * string(field) * "_@" * string(il), sub_element)
+            # if the element is a FlowChain 
+            # directly save the sub-elements of the array
+            if element isa FlowChain
+                for (il, sub_element) in enumerate(value)
+                    
+                    if (sub_element isa FlowElement) && is_atomic(sub_element)
+                        # if the sub_element is atomic, save this element only in the correct directory
+                        # here we call the function save specific to this sub_element
+                        make_dir(filename * "_" * string(field) * "_@" * string(il))
+                        _save(filename * "_" * string(field) * "_@" * string(il) * "/$(get_type(typeof(sub_element)))", sub_element)
+                    else
+                        # if the sub element is composite then call back save recursively
+                        save(filename * "_" * string(field) * "_@" * string(il), sub_element)
+                    end
+
+                end
+            else
+                if is_atomic(value)
+                    ## TO MODIFY HERE isa FlowEmlement
+                    _save(filename * "_" * string(field), value)
+                else
+                    save(filename * "_" * string(field), value)
+                end 
             end
-        else
-            save(filename * string(field), value)
         end
     end
-
 end
 
+
+function lookup_type(x::AbstractString)
+    sym = Symbol(x)
+    if isdefined(DensityFlows, sym)
+        return getfield(DensityFlows, sym)
+    elseif isdefined(Main, sym)
+        return getfield(Main, sym)
+    else
+        error("Type $x not found in DensityFlows or Main")
+    end
+end
 
 @doc raw""" 
 
@@ -198,7 +183,17 @@ function load(directory::String)
     @assert length(files) > 0 "Needs to be at least one file / folder in the directory"
     
     # type of the object to be constructed
-    m_type = eval(Symbol(split(files[1], "_")[1]))
+    str_file_1 = split(files[1], ".jld2")[1]
+    str_type   = split(str_file_1, "_")[1]
+    m_type = lookup_type(str_type)
+
+    # if the type is atomic then we do not need to go further
+    # we directly call the specific loading function
+    if (m_type <: FlowElement) && is_atomic(m_type)
+        return load(directory * "/" * str_file_1, m_type)
+    end
+
+    # if not atomic we collect all the fields
 
     # get the correct order of the fields
     field_order = fieldnames(m_type)
@@ -286,5 +281,27 @@ function load(directory::String)
     end
 
     return m_type(elements...)
+
+end
+
+
+
+###########################################################
+## Save / load flow
+
+function save(directory::String, flow::Flow; erase::Bool = false)
+
+    make_dir(directory, erase = erase)
+ 
+    for field in [:model, :metadata]
+        save(directory * "/" * string(field), getfield(flow, field))
+    end
+
+    try
+        JLD2.jldsave(directory * "losses.jld2"; Dict(field => getfield(flow, field)  for field in [:train_loss, :valid_loss])...)
+    catch e
+        println("Impossible to save $flow")
+        rethrow(e)
+    end
 
 end

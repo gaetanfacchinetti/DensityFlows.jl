@@ -116,6 +116,39 @@ macro unconditional_wrapper(funcs...)
 end
 
 
+
+macro auto_save(T)
+    return esc(
+        quote 
+            
+            function _save(filename::String, obj::$T)
+                try
+                    JLD2.jldsave(filename * ".jld2"; Dict(field => getfield(obj, field) for field in fieldnames($T))...)
+                catch e
+                    println("Impossible to save $obj")
+                    rethrow(e)
+                end
+            end
+
+            function load(filename::String, ::Type{U}) where {U<:$T}
+                try
+                    data = JLD2.jldopen(filename * ".jld2")
+                    return U([data[k] for k in string.(fieldnames(U))]...)
+                catch e
+                    println("Impossible to load $U at $filename")
+                    rethrow(e)
+                end
+            end
+
+            is_atomic(element::$T) = true
+            is_atomic(::Type{$T}) = true
+        end
+        )
+end
+
+
+
+
 #macro select_trainables(T, fields)
 #    return esc(quote
 #        # Specify exactly what are the trainable parameters

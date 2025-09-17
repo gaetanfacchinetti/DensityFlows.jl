@@ -44,7 +44,11 @@ export FlowElement, CouplingLayer, summarize
 
 @doc raw""" Building blocks of the flow """ 
 abstract type FlowElement end
-abstract type CouplingLayer <: FlowElement end
+
+# make the difference between containers of multiple simple flows
+abstract type FlowLayer <: FlowElement end
+abstract type FlowContainer <: FlowElement end
+abstract type CouplingLayer <: FlowLayer end
 
 # default behaviour for summarize
 @doc raw"""
