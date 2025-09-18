@@ -23,7 +23,7 @@
 #
 ##################################################################################
 
-export save_model, load_model, save_flow, load_flow
+export save_element, load_element, save_flow, load_flow
 
 
 ###########################################################
@@ -63,8 +63,8 @@ is_atomic(::Type{T}) where {T<:Any} = false
 @save_as_atomic MetaData
 
 # generic function save
-function _save_model(filename::AbstractString, value)
-    is_atomic(value) ? save_model_atomic(filename, value) : save_model(filename, value)
+function _save_element(filename::AbstractString, value)
+    is_atomic(value) ? save_element_atomic(filename, value) : save_element(filename, value)
 end
 
 ###########################################################
@@ -75,7 +75,7 @@ function Flux.Dense((in, out)::Pair{<:Integer, <:Integer}, σ::Symbol; init = Fl
     return Dense(init(out, in), bias, @eval (Flux.$σ))
 end
 
-function save_model(filename::AbstractString, model::Flux.Chain)
+function save_element(filename::AbstractString, model::Flux.Chain)
 
     # save the structure parameter of the layer and the value of the trainable parameters
     
@@ -96,7 +96,7 @@ function save_model(filename::AbstractString, model::Flux.Chain)
 end
 
 
-function load_model(filename::AbstractString, ::Type{T}) where {T<:Flux.Chain}
+function load_element(filename::AbstractString, ::Type{T}) where {T<:Flux.Chain}
 
     try
         data = JLD2.jldopen(filename * ".jld2")
@@ -115,20 +115,20 @@ end
 
 @doc raw"""
     
-    save_model(directory, element; kws...)
+    save_element(directory, element; kws...)
 
 Recursively save the [`FlowElement`](@ref) `element`'s weights in `directory`.
 
 Setting `erase = true` force deletes any existing directory with the same name.
 """
-function save_model(directory::AbstractString, element::T; erase::Bool = false) where {T<:FlowElement}
+function save_element(directory::AbstractString, element::T; erase::Bool = false) where {T<:FlowElement}
 
     make_dir(directory, erase = erase)
     filename = directory * "/" * get_type(T)
 
     # if the element itself is atomic simply save it
     if is_atomic(element) 
-        save_model_atomic(filename, element)
+        save_element_atomic(filename, element)
         return nothing
     end
 
@@ -150,10 +150,10 @@ function save_model(directory::AbstractString, element::T; erase::Bool = false) 
                     # here we call the function save specific to this sub_element
                     
                     make_dir(_filename)
-                    save_model_atomic(_filename * "/$(get_type(typeof(sub_element)))", sub_element)
+                    save_element_atomic(_filename * "/$(get_type(typeof(sub_element)))", sub_element)
                 else
                     # if the sub element is composite then call back save recursively
-                    save_model(_filename, sub_element)
+                    save_element(_filename, sub_element)
                 end
 
             end
@@ -164,7 +164,7 @@ function save_model(directory::AbstractString, element::T; erase::Bool = false) 
 
         end
 
-        _save_model(filename * "_" * string(field), value)
+        _save_element(filename * "_" * string(field), value)
 
     end
 
@@ -188,15 +188,16 @@ lookup_type(x::AbstractString) = lookup_type(Symbol(x))
 
 @doc raw""" 
 
-    load_model(directory)
+    load_element(directory)
 
 Load any [`FlowElement`](@ref) saved in `directory`.
 """
-function load_model(directory::AbstractString)
+function load_element(directory::AbstractString)
 
+    # read the all the files in the directory
     files = readdir(directory)
-    elements = Any[]
 
+    # make sure there is at least one file
     @assert length(files) > 0 "Needs to be at least one file / folder in the directory"
     
     # type of the object to be constructed
@@ -207,7 +208,7 @@ function load_model(directory::AbstractString)
     # if the type is atomic then we do not need to go further
     # we directly call the specific loading function
     if (m_type <: FlowElement) && is_atomic(m_type)
-        return load_model(directory * "/" * str_file_1, m_type)
+        return load_element(directory * "/" * str_file_1, m_type)
     end
 
     # if not atomic we collect all the fields
@@ -227,7 +228,7 @@ function load_model(directory::AbstractString)
         # boolean value to know if we open composite element or not
         composite = true
         
-        # get the field name by manipulating the filename
+        # get the field name by manipulating the string file
         str_field = file
         str_field = *([s * "_" for s in split(str_field, "_")[2:end]]...)[1:end-1]
 
@@ -244,7 +245,7 @@ function load_model(directory::AbstractString)
             str_field = str_field[1:end-3]
         end
 
-        # field that to be constructed in that part of the loop
+        # field that has to be constructed in that part of the loop
         field = Symbol(str_field)
 
         # check if we reached a jld2 file or not
@@ -281,26 +282,29 @@ function load_model(directory::AbstractString)
         # if we do have to load an array
         if n_array > 1
 
+            # teomporary vector holding the array
             temp = Vector{Any}(undef, n_array)
 
+            # populate the temporary vector
             for k in 1:n_array
                 filename = filenames[k]
-                temp[order_array[k]] = !composite ? load_model(filename, fieldtype(m_type, field)) : load_model(filename)
+                temp[order_array[k]] = !composite ? load_element(filename, fieldtype(m_type, field)) : load_element(filename)
             end
     
         else
+            # only one filename, treat this one
             filename = filenames[1]
-            temp = !composite ? load_model(filename, fieldtype(m_type, field)) : load_model(filename)
+            temp = !composite ? load_element(filename, fieldtype(m_type, field)) : load_element(filename)
         end
 
         elements[order_field] = temp
 
     end
 
+    # reconstruct the object of type m_type passing elements as input
     return m_type(elements...)
 
 end
-
 
 
 
@@ -314,7 +318,7 @@ function save_flow(directory::AbstractString, flow::Flow; erase::Bool = false)
     make_dir(directory, erase = erase)
  
     for field in [:model, :metadata]
-        _save(directory * "/" * string(field), getfield(flow, field))
+        _save_element(directory * "/" * string(field), getfield(flow, field))
     end
 
     try
@@ -324,8 +328,35 @@ function save_flow(directory::AbstractString, flow::Flow; erase::Bool = false)
         rethrow(e)
     end
 
+    try
+        JLD2.jldsave(directory * "/base_dist.jld2"; base = flow.base)
+    catch e
+        println("Impossible to save $flow")
+        rethrow(e)
+    end
+
 end
 
 function load_flow(directory::AbstractString)
-    return nothing
+    
+    model = load_element(directory * "/model")
+    metadata = load_element(directory * "/metadata", MetaData)
+    
+    try
+        
+        data = JLD2.jldopen(directory * "/losses.jld2")
+        train_loss = data["train_loss"]
+        valid_loss = data["valid_loss"]
+
+        data = JLD2.jldopen(directory * "/base_dist.jld2")
+        base = data["base"]
+
+        return Flow(model, base, metadata, train_loss, valid_loss)
+    
+    catch e
+        println("Impossible to load $U at $filename")
+        rethrow(e)
+    end
+
+   
 end

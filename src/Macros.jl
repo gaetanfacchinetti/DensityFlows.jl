@@ -25,8 +25,10 @@
 
 
 export @auto_forward!, @auto_functor, @summary
-export @save_as_atomic, @save_model, @clear_and_save_model
-export @load_model
+export @save_as_atomic
+export @save_element, @clear_and_save_element
+export @save_flow, @clear_and_save_flow
+export @load_element, @load_flow
 
 
 @doc raw"""
@@ -118,14 +120,16 @@ macro unconditional_wrapper(funcs...)
 end
 
 # default behaviour of the functions in DensityFlows
-save_model_atomic() = nothing
-load_model() = nothing
+save_element_atomic() = nothing
+load_element() = nothing
 
 macro save_as_atomic(T)
+    
     return esc(
+
         quote 
             
-            function DensityFlows.save_model_atomic(filename::String, obj::$T)
+            function DensityFlows.save_element_atomic(filename::String, obj::$T)
                 try
                     JLD2.jldsave(filename * ".jld2"; Dict(field => getfield(obj, field) for field in fieldnames($T))...)
                 catch e
@@ -134,7 +138,7 @@ macro save_as_atomic(T)
                 end
             end
 
-            function DensityFlows.load_model(filename::String, ::Type{U}) where {U<:$T}
+            function DensityFlows.load_element(filename::String, ::Type{U}) where {U<:$T}
                 try
                     data = JLD2.jldopen(filename * ".jld2")
                     return U([data[k] for k in string.(fieldnames(U))]...)
@@ -149,19 +153,33 @@ macro save_as_atomic(T)
 
         end
         )
+        
 end
 
 
-macro clear_and_save_model(filename, model)
-    return esc(quote save_model($filename, $model, erase = true) end)
+macro clear_and_save_element(filename, model)
+    return esc(quote save_element($filename, $model, erase = true) end)
 end
 
-macro save_model(filename, models...)
-    return esc(quote save_model($filename, $model, erase = false) end)
+macro save_element(filename, model)
+    return esc(quote save_element($filename, $model, erase = false) end)
 end
 
-macro load_model(filename)
-    return esc(quote load_model($filename) end)
+macro load_element(filename)
+    return esc(quote load_element($filename) end)
+end
+
+macro clear_and_save_flow(filename, flow)
+    return esc(quote save_flow($filename, $flow, erase = true) end)
+end
+
+macro save_flow(filename, flow)
+    return esc(quote save_flow($filename, $flow, erase = false) end)
+end
+
+
+macro load_flow(filename)
+    return esc(quote load_flow($filename) end)
 end
 
 
