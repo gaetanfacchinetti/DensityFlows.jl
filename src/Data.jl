@@ -24,7 +24,7 @@
 ##################################################################################
 
 export MetaData, DataPartition, DataArrays
-export data_x_min, data_x_max, data_θ_min, data_θ_max
+export minimum_θ, maximum_θ
 export normalize_input, normalize_input!
 export resize_output, resize_output!
 export dflt_θ
@@ -201,8 +201,9 @@ Normalize input between ``[-1, 1]``.
 See also [`normalize_input!`](@ref) and [`resize_output`](@ref).
 """
 function normalize_input(x::AbstractArray{T, N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T, N} 
-    y = (x .- x_min) ./ (x_max .- x_min)
-    y[vec((x_max .- x_min) .== zero(T)), ntuple(_ -> :, N-1)...] .= zero(T)
+    x_diff = x_max .- x_min
+    y = (x .- x_min) ./ x_diff
+    @views y[x_diff .== zero(T), ntuple(_ -> :, N-1)...] .= zero(T)
     return y
 end
 
@@ -220,8 +221,15 @@ See also [`resize_output!`](@ref) and [`normalize_input`](@ref).
 """
 resize_output(y::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = (x_max .- x_min) .* y .+ x_min
 
-normalize_input(x::Nothing, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T} = nothing
-grad_normalisation(x_min::T, x_max::T) where {T} = 1 ./ (x_max - x_min)
+
+
+function grad_normalisation(x_min::T, x_max::T) where {T} 
+    x_diff = x_max .- x_min
+    res = 1 ./ x_diff
+    @views res[x_diff .== zero(T), ntuple(_ -> :, N-1)...] .= zero(T)
+    return res
+end
+
 
 @doc raw"""
 
@@ -231,9 +239,10 @@ Normalize input between ``[-1, 1]`` in place.
 
 See also [`normalize_input`](@ref) and [`resize_output!`](@ref).
 """
-@inline function normalize_input!(x::AbstractArray{T, N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T, N}
-    x .= (x .- x_min) ./ (x_max .- x_min)
-    x[vec((x_max .- x_min) .== zero(T)), ntuple(_ -> :, N-1)...] .= zero(T)
+@inline function normalize_input!(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
+    x_diff = x_max .- x_min
+    x .= (x .- x_min) ./ x_diff
+    @views x[x_diff .== zero(T), ntuple(_ -> :, N-1)...] .= zero(T)
 end
 
 

@@ -35,8 +35,8 @@ forward!
 ## Save and load
 
 ```@docs
-save
-load
+save_element
+load_element
 ```
 
 ## Macros
@@ -45,4 +45,5 @@ load
 @auto_forward!
 @auto_functor
 @summary
+@unconditional_wrapper
 ```

@@ -15,6 +15,7 @@ concatenate
 ## Density evaluation
 
 ```@docs
+sample
 logpdf
 pdf
 ```

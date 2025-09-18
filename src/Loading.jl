@@ -37,7 +37,7 @@ function make_dir(path::AbstractString; erase::Bool = false)
             # remove existing directory
             rm(path; recursive=true)    
         else
-            throw(ArgumentError("Impossible to save at $path if erase is false as a folder of the same name already exists."))
+            throw(ArgumentError("Impossible to save at $path if erase is false as a folder with the same name already exists."))
         end
 
     end

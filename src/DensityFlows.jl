@@ -72,6 +72,5 @@ include("./Loading.jl")
 
 @flow_wrapper backward forward forward!
 @unconditional_wrapper backward forward forward!
-@unconditional_wrapper predict pdf logpdf
 
 end

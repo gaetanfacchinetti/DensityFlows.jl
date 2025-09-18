@@ -25,6 +25,7 @@
 
 
 export @auto_forward!, @auto_functor, @summary
+export @unconditional_wrapper
 export @save_as_atomic
 export @save_element, @clear_and_save_element
 export @save_flow, @clear_and_save_flow
@@ -96,7 +97,6 @@ end
 macro flow_wrapper(funcs...)
     return esc(Expr(:block, 
     [quote
-        #$f(flow::Flow, y::AbstractArray) = $f(flow.model, y)
         function $f(flow::Flow, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
             $f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
         end
@@ -176,7 +176,6 @@ end
 macro save_flow(filename, flow)
     return esc(quote save_flow($filename, $flow, erase = false) end)
 end
-
 
 macro load_flow(filename)
     return esc(quote load_flow($filename) end)

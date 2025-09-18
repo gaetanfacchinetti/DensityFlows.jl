@@ -147,7 +147,7 @@ function backward(
     ) where {T}
 
     n = length(chain)
-    x_i , ln_det_jac = backward(chain[end], x, θ)
+    x_i, ln_det_jac = backward(chain[end], x, θ)
 
     @inbounds for i ∈ 2:n
         x_i, ln_det_jac_i = backward(chain[n - i + 1], x_i, θ)
