@@ -24,7 +24,9 @@
 ##################################################################################
 
 
-export  @auto_forward!, @auto_functor, @summary #, @select_trainables, @auto_flow
+export @auto_forward!, @auto_functor, @summary
+export @save_as_atomic, @save_model, @clear_and_save_model
+export @load_model
 
 
 @doc raw"""
@@ -115,13 +117,15 @@ macro unconditional_wrapper(funcs...)
     return esc(Expr(:block, [quote $f(obj::Union{FlowElement, Flow{T}}, y::AbstractArray{T}) where {T} = $f(obj, y, dflt_θ(y)) end for f in funcs]...))
 end
 
+# default behaviour of the functions in DensityFlows
+save_model_atomic() = nothing
+load_model() = nothing
 
-
-macro auto_save(T)
+macro save_as_atomic(T)
     return esc(
         quote 
             
-            function _save(filename::String, obj::$T)
+            function DensityFlows.save_model_atomic(filename::String, obj::$T)
                 try
                     JLD2.jldsave(filename * ".jld2"; Dict(field => getfield(obj, field) for field in fieldnames($T))...)
                 catch e
@@ -130,7 +134,7 @@ macro auto_save(T)
                 end
             end
 
-            function load(filename::String, ::Type{U}) where {U<:$T}
+            function DensityFlows.load_model(filename::String, ::Type{U}) where {U<:$T}
                 try
                     data = JLD2.jldopen(filename * ".jld2")
                     return U([data[k] for k in string.(fieldnames(U))]...)
@@ -140,10 +144,24 @@ macro auto_save(T)
                 end
             end
 
-            is_atomic(element::$T) = true
-            is_atomic(::Type{$T}) = true
+            DensityFlows.is_atomic(element::$T) = true
+            DensityFlows.is_atomic(::Type{$T}) = true
+
         end
         )
+end
+
+
+macro clear_and_save_model(filename, model)
+    return esc(quote save_model($filename, $model, erase = true) end)
+end
+
+macro save_model(filename, models...)
+    return esc(quote save_model($filename, $model, erase = false) end)
+end
+
+macro load_model(filename)
+    return esc(quote load_model($filename) end)
 end
 
 
