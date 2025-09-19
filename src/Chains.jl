@@ -142,9 +142,9 @@ end
 
 function backward(
     chain::FlowChain, 
-    x::AbstractArray{T},
-    θ::AbstractArray{T}
-    ) where {T}
+    x::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     n = length(chain)
     x_i, ln_det_jac = backward(chain[end], x, θ)
@@ -161,9 +161,9 @@ end
 
 function forward(
     chain::FlowChain, 
-    z::AbstractArray{T},
-    θ::AbstractArray{T}
-    ) where {T}
+    z::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     n = length(chain)
     z_i, ln_det_jac = forward(chain[1], z, θ)
@@ -180,9 +180,9 @@ end
 
 function forward!(
     chain::FlowChain, 
-    z::AbstractArray{T},
-    θ::AbstractArray{T}
-    )  where {T}
+    z::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    )  where {T,N}
 
     @inbounds for i ∈ eachindex(chain.layers)
         forward!(chain[i], z, θ)

@@ -33,13 +33,12 @@ export logpdf, pdf
 ##########
 #Flow
 
-@doc raw""" Normalizing flow """
-struct Flow{T, M<:FlowChain, D<:Distributions.Distribution, U<:AbstractArray{T}}
+struct Flow{T, D, N, M<:FlowChain, B<:Distributions.Distribution, V<:AbstractVector{T}}
     
     model::M
-    base::D
+    base::B
 
-    metadata::MetaData{T, U}
+    metadata::MetaData{T, V}
 
     train_loss::Vector{T}
     valid_loss::Vector{T}
@@ -58,6 +57,17 @@ end
 
 
 
+@doc raw"""
+
+    Flow([base, ] model, data)
+
+Create a Flow from a model [`FlowChain`](@ref) and for a specific data.
+
+The data must be passed as a [`DataArrays`](@ref). 
+A spceific `base` distribution can be given, default is multivariate gaussian. 
+"""
+Flow
+
 function Flow(
     base::Distributions.Distribution, 
     model::FlowChain, 
@@ -75,7 +85,7 @@ function Flow(
 
     metadata = MetaData("", d, n, θ_min, θ_max)
    
-    return Flow(model, base, metadata, train_loss, valid_loss)
+    return Flow{T, d, n, typeof(model), typeof(base), typeof(θ_min)}(model, base, metadata, train_loss, valid_loss)
 
 end
 
@@ -97,7 +107,7 @@ function Flow(
 
     base = Distributions.MvNormal(zeros(T, d), LinearAlgebra.diagm(ones(T, d)))
    
-    return Flow(model, base, metadata, train_loss, valid_loss)
+    return Flow{T, d, n, typeof(model), typeof(base), typeof(θ_min)}(model, base, metadata, train_loss, valid_loss)
 
 end
 
@@ -107,9 +117,7 @@ Flow(model::FlowChain, data::DataArrays{T}) where {T} = Flow(model, data, T[], T
 
 
 # define a predict function that is the same as the forward function
-predict(flow::Flow{T}, z::AbstractArray{T}, θ::AbstractArray{T}) where {T} = forward(flow, z, θ)[1]
-
-Ind{N} = Union{Integer, NTuple{N, Integer}}
+predict(flow::Flow{T}, z::AbstractArray{T,N}, θ::AbstractArray{T,N}) where {T,N} = forward(flow, z, θ)[1]
 
 @doc raw""" 
 
@@ -118,16 +126,15 @@ Ind{N} = Union{Integer, NTuple{N, Integer}}
 Sample the flow distribution.
 
 Give a sample of the flow distribution of size given by `dims` which
-can be an `Integer`, a `NTuple` integers. The default random sampler
+can be an `Integer`, or `NTuple` of integers. The default random sampler
 is `Random.default_rng()` but any sampler of type `Random.AbstractRNG`
 can be used. 
 
 If the flow is conditional, `θ` can be passed as an array 
 of size `(n, dims...)` where n is the number of parameters 
 if `θ` different for at least two sampled points. Otherwise 
-`θ` can be given as an `AbstractVector` or `Tuple{Vararg}` of 
-length n, in that case all points are drawn with the same 
-`θ` parameter.
+`θ` can be given as a `NTuple{n, T}`. In that case all points 
+are drawn with the same `θ` parameter.
 
 # Example
 ```julia
@@ -136,30 +143,49 @@ sample(flow, (20, 10))
 
 # return a sample of size (20, 10) at 
 # parameter (1f0, 2f0) if flow is conditional
-sample(flow, (20, 10), [1f0, 2f0])
+sample(flow, (20, 10), (1f0, 2f0))
 ```
 """
+function sample end
+
 function sample(
     rng::Random.AbstractRNG,
-    flow::Flow{T},
-    dims::Ind{N},
-    θ::AbstractArray{T} = dflt_θ(T, dims)
-    ) where {T, N}
+    flow::Flow{T,D},
+    dims::NTuple{M, Integer},
+    θ::AbstractArray{T, K} = dflt_θ(T, dims)
+    ) where {T,D,M,K}
 
-    d = flow.metadata.d
-    r = reshape(rand(rng, flow.base, *(dims...)), (d, dims...))
+    # need to remove this assert if in hot loop
+    @assert K == M+1 "dimensions θ must match (n, dims...) with n number of trained parameters"
+
+    r = reshape(rand(rng, flow.base, *(dims...)), (D, dims...))
     forward!(flow, r, θ)
     
     return r
 
 end
 
-sample(rng::Random.AbstractRNG, flow::Flow{T}, dims::Ind{N}, θ::AbstractVector{T}) where {T,N} = sample(rng, flow, dims, θ .* ones(1, dims))
-sample(rng::Random.AbstractRNG, flow::Flow{T}, dims::Ind{N}, θ::Tuple{Vararg{T}}) where {T,N} = sample(rng, flow, dims, collect(θ))
+function sample(
+    rng::Random.AbstractRNG,
+    flow::Flow{T,D,N},
+    dims::Tuple{Vararg{T}},
+    θ::NTuple{N, T}
+    ) where {T,D,N}
+    
+    r = reshape(rand(rng, flow.base, *(dims...)), (D, dims...))
+    forward!(flow, r, collect(θ) .* ones(1, dims...) )
+    
+    return r
+end
 
-sample(flow::Flow{T}, dims::Ind{N}, θ::AbstractArray{T} = dflt_θ(T, dims)) where {T,N} = sample(Random.default_rng(), flow, dims, θ)
-sample(flow::Flow{T}, dims::Ind{N}, θ::AbstractVector{T}) where {T,N} = sample(Random.default_rng(), flow, dims, θ)
-sample(flow::Flow{T}, dims::Ind{N}, θ::Tuple{Vararg{T}}) where {T,N} = sample(Random.default_rng(), flow, dims, θ)
+sample(rng::Random.AbstractRNG, flow::Flow{T}, dims::Integer, θ::AbstractArray{T} = dflt_θ(T, dims)) where {T} = sample(rng, flow, (dims, ), θ)
+sample(rng::Random.AbstractRNG, flow::Flow{T,D,N}, dims::Integer, θ::NTuple{N, T}) where {T,D,N} = sample(rng, flow, (dims, ), θ)
+
+
+sample(flow::Flow{T}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::AbstractArray{T} = dflt_θ(T, dims)) where {T} = sample(Random.default_rng(), flow, dims, θ)
+sample(flow::Flow{T}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::Tuple{Vararg{T}}) where {T} = sample(Random.default_rng(), flow, dims, θ)
+
+
 
 
 @doc raw"""
@@ -175,12 +201,11 @@ grid of values defined by these vectors.
 If the flow is conditional, `θ` can be passed as an array 
 of size `(n, dims...)` where n is the number of parameters 
 if `θ` different for at least two sampled points. Otherwise 
-`θ` can be given as an `AbstractVector` or `Tuple{Vararg}` of 
-length n.
+`θ` can be given as a `NTuple{n, T}`.
 
 !!! warning
-    If `x` is given as a `Tuple` of vectors, `θ` must be passed
-    as an `AbstractVector` or `Tuple{Vararg}` of length n.
+    If `x` is given as a `Tuple` of vectors, 
+    `θ` must be passed as a `NTuple{n, T}`.
 
 # Example
 ```julia
@@ -191,7 +216,7 @@ z = range(0.1f0, 2f0, 30)
 
 # For a given trained Flow 'flow' on 3 dimensions
 res = logpdf(flow, (x, y, z)) # if unconditional
-res = logpdf(flow, (x, y, z), [1f0, 2f0]) # if 2 conditions
+res = logpdf(flow, (x, y, z), (1f0, 2f0)) # if 2 conditions
 
 # using contour in Plots
 contour(x, y, res[:, :, 1]')
@@ -200,11 +225,14 @@ contour(x, z, res[:, 4, :]')
 
 See also [`pdf`](@ref).
 """
+function logpdf end
+
+
 function logpdf(
     flow::Flow{T},
-    x::AbstractArray{T},
-    θ::AbstractArray{T}
-    ) where {T}
+    x::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     z, ln_det_jac = backward(flow, x, θ)
     return Distributions.logpdf(flow.base, z) .+ ln_det_jac
@@ -212,26 +240,54 @@ function logpdf(
 end
 
 logpdf(flow::Flow{T}, x::AbstractArray{T}) where {T} = logpdf(flow, x, dflt_θ(x))
-logpdf(flow::Flow{T}, x::AbstractArray{T}, θ::AbstractVector{T}) where {T} = logpdf(flow, x, θ .* ones(T, 1, size(x)[2:N]...))
-logpdf(flow::Flow{T}, x::AbstractArray{T}, θ::Tuple{Vararg{T}}) where {T} = logpdf(flow, x, collect(θ))
+logpdf(flow::Flow{T}, x::AbstractArray{T,N}, θ::Tuple{Vararg{T}}) where {T,N} = logpdf(flow, x, collect(θ))
 
 
 function logpdf(
-    flow::Flow{T}, 
-    x::Tuple{Vararg{AbstractVector{T}}}, 
-    θ::AbstractVector{T}
-    ) where {T}
-    
+    flow::Flow{T,D,N}, 
+    x::NTuple{D, AbstractVector{T}}, 
+    θ::NTuple{N, T}
+    ) where {T,D,N}
+
+    # array of the lengths of the arrays in x
     lens = [length(v) for v in x]
+
+    # allocate the output in order to help compiler
+    # with type inference
+    res = Array{T, length(x)}(undef, lens...)
+    
+    # resshape the entire input into a (d, p) array
+    # where p is the product of the length of all 
+    # arrays in x. θ must also be of shape (d, p) then
     y = hcat(collect.(collect(Iterators.product(x...)))...) 
-    t = θ .* ones(T, 1, *(lens...))
-    return reshape(logpdf(flow, y, t), lens...)
+    res .= reshape(logpdf(flow, y, T.(collect(θ)) .* ones(T, 1, *(lens...))), lens...)
+
+    return res
 
 end
 
-logpdf(flow::Flow{T}, x::Tuple{Vararg{AbstractVector{T}}}) where {T} = logpdf(flow, x, T[])
-logpdf(flow::Flow{T}, x::Tuple{Vararg{AbstractVector{T}}}, θ::Tuple{Vararg{T}})  where {T} = logpdf(flow, x, collect(θ))
 
+function logpdf(
+    flow::Flow{T,D}, 
+    x::NTuple{D, AbstractVector{T}}, 
+    ) where {T,D}
+
+    # array of the lengths of the arrays in x
+    lens = [length(v) for v in x]
+
+    # allocate the output in order to help compiler
+    # with type inference
+    res = Array{T, length(x)}(undef, lens...)
+    
+    # resshape the entire input into a (d, p) array
+    # where p is the product of the length of all 
+    # arrays in x. θ must also be of shape (d, p) then
+    y = hcat(collect.(collect(Iterators.product(x...)))...) 
+    res .= reshape(logpdf(flow, y, dflt_θ(y)), lens...)
+
+    return res
+
+end
 
 
 
@@ -243,8 +299,13 @@ Probability density function given by the flow.
 
 See also [`logpdf`](@ref).
 """
-pdf(flow::Flow, x, θ) = exp.(logpdf(flow, x, θ))
-pdf(flow::Flow, x) = exp.(logpdf(flow, x))
+function pdf end
+
+pdf(flow::Flow{T}, x::AbstractArray{T,N}, θ::AbstractArray{T,N}) where {T,N} = exp.(logpdf(flow, x, θ))
+pdf(flow::Flow{T}, x::AbstractArray{T}) where {T} = exp.(logpdf(flow, x))
+pdf(flow::Flow{T}, x::AbstractArray{T,N}, θ::Tuple{Vararg{T}}) where {T,N} = exp.(logpdf(flow, x, θ))
+pdf(flow::Flow{T,D,N}, x::NTuple{D, AbstractVector{T}}, θ::NTuple{N, T}) where {T,D,N} = exp.(logpdf(flow, x, θ))
+pdf(flow::Flow{T,D}, x::NTuple{D, AbstractVector{T}}) where {T,D} = exp.(logpdf(flow, x))
 
 
 @inline function loss(

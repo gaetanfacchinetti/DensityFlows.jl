@@ -142,9 +142,9 @@ end
 
 function backward(
     layer::RNVPCouplingLayer, 
-    x::AbstractArray{T}, 
-    θ::AbstractArray{T}
-    ) where {T}
+    x::AbstractArray{T,N}, 
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     # define the input from the
     input = selectdim(vcat(θ, x), 1, layer.axes.axis_nn)
@@ -160,9 +160,9 @@ end
 
 function forward(
     layer::RNVPCouplingLayer, 
-    z::AbstractArray{T}, 
-    θ::AbstractArray{T}
-    ) where {T}
+    z::AbstractArray{T,N}, 
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
@@ -182,9 +182,9 @@ end
 
 function forward!(
     layer::RNVPCouplingLayer, 
-    z::AbstractArray{T}, 
-    θ::AbstractArray{T}
-    ) where {T}
+    z::AbstractArray{T,N}, 
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 

@@ -113,9 +113,9 @@ CouplingBlock(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) 
 
 function backward(
     block::CouplingBlock, 
-    x::AbstractArray{T},
-    θ::AbstractArray{T}
-    ) where {T}
+    x::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     y, ln_det_jac_2 = backward(block.layer_2, x, θ)
     z, ln_det_jac_1 = backward(block.layer_1, y, θ)
@@ -126,9 +126,9 @@ end
 
 function forward(
     block::CouplingBlock, 
-    z::AbstractArray{T},
-    θ::AbstractArray{T}
-    ) where {T}
+    z::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     y, ln_det_jac_1 = forward(block.layer_1, z, θ)
     x, ln_det_jac_2 = forward(block.layer_2, y, θ)
@@ -139,9 +139,9 @@ end
 
 function forward!(
     block::CouplingBlock, 
-    z::AbstractArray{T},
-    θ::AbstractArray{T}
-    ) where {T}
+    z::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
 
     forward!(block.layer_1, z, θ)
     forward!(block.layer_2, z, θ)

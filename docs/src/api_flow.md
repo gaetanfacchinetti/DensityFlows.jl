@@ -5,6 +5,10 @@ CollapsedDocStrings = true
 
 # Flow
 
+```@docs
+Flow
+```
+
 ## Chains
 
 ```@docs

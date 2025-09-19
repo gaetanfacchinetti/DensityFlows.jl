@@ -9,7 +9,6 @@ CollapsedDocStrings = true
 ## Structure
 
 ```@docs
-Flow
 FlowElement
 summarize
 ```

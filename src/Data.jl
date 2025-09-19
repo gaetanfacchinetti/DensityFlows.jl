@@ -71,16 +71,16 @@ end
 
 Metadata containing an identification hash value and the boundaries of the parameters array θ.
 """
-struct MetaData{T, U<:AbstractVector{T}}
+struct MetaData{T, V<:AbstractVector{T}}
     
     hash::String
 
     # same information as in the
-    d::Int
-    n::Int
+    d::Integer
+    n::Integer
 
-    θ_min::U
-    θ_max::U
+    θ_min::V
+    θ_max::V
 
 end
 
@@ -109,7 +109,7 @@ a fraction `f_validation` of validation data. If `f_training + f_validation < 1`
 the rest is kept as testing data. 
 """
 function DataPartition(
-    n::Int, 
+    n::Integer, 
     f_training::Real = 0.9, 
     f_validation::Real = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
