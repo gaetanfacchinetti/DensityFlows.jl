@@ -329,18 +329,18 @@ function train!(
     debug::Bool=false
     ) where {T}
     
-    train_data = training_data(data)
-    valid_data = validation_data(data)
+    train_data = normalized_training_data(data, flow.metadata)
+    valid_data = normalized_validation_data(data, flow.metadata)
     
     train_loader = Flux.DataLoader(train_data; batchsize=batchsize, shuffle=shuffle)
 
     for _ ∈ 1:epochs
         
-        for (x_batch, θ_batch) ∈ train_loader
+        for (x_batch, t_batch) ∈ train_loader
 
             grads = Flux.gradient(flow.model) do m
             
-                z, ln_det_jac = backward(m, x_batch, normalize_input(θ_batch, flow.metadata.θ_min, flow.metadata.θ_max))
+                z, ln_det_jac = backward(m, x_batch, t_batch)
                 l = loss(z, ln_det_jac, flow.base)
 
                 # debugging if loss gets NaN

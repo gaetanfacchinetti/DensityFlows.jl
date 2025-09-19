@@ -185,8 +185,17 @@ training_data(data::DataArrays)   = selectdim(data.x, 2, data.partition.training
 validation_data(data::DataArrays) = selectdim(data.x, 2, data.partition.validation), selectdim(data.θ, 2, data.partition.validation)
 testing_data(data::DataArrays)    = selectdim(data.x, 2, data.partition.testing),    selectdim(data.θ, 2, data.partition.testing)
 
+function normalized_training_data(data::DataArrays, metadata::MetaData) 
+    x, θ = training_data(data)
+    t = normalize_input(θ, metadata.θ_min, metadata.θ_max)
+    return x, t
+end
 
-
+function normalized_validation_data(data::DataArrays, metadata::MetaData) 
+    x, θ = validation_data(data)
+    t = normalize_input(θ, metadata.θ_min, metadata.θ_max)
+    return x, t
+end
 
 @doc raw"""
 
