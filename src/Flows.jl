@@ -336,11 +336,11 @@ function train!(
 
     for _ ∈ 1:epochs
         
-        for (x_batch, t_batch) ∈ train_loader
+        for (x_batch, θ_batch) ∈ train_loader
 
             grads = Flux.gradient(flow.model) do m
             
-                z, ln_det_jac = backward(m, x_batch, t_batch)
+                z, ln_det_jac = backward(m, x_batch, normalize_input(θ_batch, flow.metadata.θ_min, flow.metadata.θ_max))
                 l = loss(z, ln_det_jac, flow.base)
 
                 # debugging if loss gets NaN

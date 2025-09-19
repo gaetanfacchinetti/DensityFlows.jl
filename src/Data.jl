@@ -110,10 +110,10 @@ the rest is kept as testing data.
 """
 function DataPartition(
     n::Integer, 
-    f_training::Real = 0.9, 
-    f_validation::Real = 0.1, 
+    f_training::T = 0.9, 
+    f_validation::T = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
-    )
+    ) where {T}
 
     # generate a random permutation of length n
     p = Random.randperm(rng, n)
@@ -155,8 +155,8 @@ See also [`DataPartition`](@ref) and [`MetaData`](@ref).
 function DataArrays(
     x::AbstractArray{T, N}, 
     θ::AbstractArray{T, N} = dflt_θ(x);
-    f_training::Real = 0.9, 
-    f_validation::Real = 0.1, 
+    f_training::T = 0.9, 
+    f_validation::T = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
     ) where {T, N}
 
