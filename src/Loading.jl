@@ -351,10 +351,17 @@ function load_flow(directory::AbstractString)
         data = JLD2.jldopen(directory * "/base_dist.jld2")
         base = data["base"]
 
-        return Flow(model, base, metadata, train_loss, valid_loss)
+        T = eltype(metadata.θ_min)
+        D = metadata.d
+        N = metadata.n
+        M = typeof(model)
+        B = typeof(base) 
+        V = typeof(metadata.θ_min)
+
+        return Flow{T, D, N, M, B, V}(model, base, metadata, train_loss, valid_loss)
     
     catch e
-        println("Impossible to load $U at $filename")
+        println("Impossible to load flow at $directory")
         rethrow(e)
     end
 

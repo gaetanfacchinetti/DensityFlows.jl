@@ -168,12 +168,12 @@ end
 function sample(
     rng::Random.AbstractRNG,
     flow::Flow{T,D,N},
-    dims::Tuple{Vararg{T}},
+    dims::Tuple{Vararg{Integer}},
     θ::NTuple{N, T}
     ) where {T,D,N}
     
     r = reshape(rand(rng, flow.base, *(dims...)), (D, dims...))
-    forward!(flow, r, collect(θ) .* ones(1, dims...) )
+    forward!(flow, r, collect(θ) .* ones(T, (1, dims...)) )
     
     return r
 end
@@ -186,6 +186,41 @@ sample(flow::Flow{T}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::Abstract
 sample(flow::Flow{T}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::Tuple{Vararg{T}}) where {T} = sample(Random.default_rng(), flow, dims, θ)
 
 
+## Need to be checked
+function sample_with_rejection(
+    rng::Random.AbstractRNG,
+    condition::Function,
+    flow::Flow{T, D},
+    dims::Union{Integer, Tuple{Vararg{Integer}}},
+    θ::Tuple{Vararg{T}},
+    m::Int = 100
+    ) where {T,D}
+
+    
+    i = 0
+    j = 0
+
+    n = *(dims...)
+    r = Matrix{T}(undef, (D, n))
+
+    while j < n && i < m * n
+
+        test = sample(rng, flow, 1, θ)[:, 1]
+        condition(test, θ) && begin r[:, j+1] .= test; j = j+1 end
+        i = i+1
+        
+    end
+
+    if i >= m * n
+        # need to provide a better message
+        throw(ArgumentError("Impossible to reach convergence of rejection sampling"))
+    end
+
+    return reshape(r, (D, dims...))
+
+end
+
+sample_with_rejection(condition::Function, flow::Flow{T, D}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::Tuple{Vararg{T}}, m::Int = 100) where {T,D}= sample_with_rejection(Random.default_rng(), condition, flow, dims, θ, m)
 
 
 @doc raw"""
