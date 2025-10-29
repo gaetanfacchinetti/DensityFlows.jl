@@ -52,7 +52,7 @@ function summarize(obj::Flow)
     println("- model --------------------")
     summarize(obj.model)
     println("- base distribution --------")
-    println("• " * string(Base.typename(typeof(obj.base)).wrapper))
+    println(string(Base.typename(typeof(obj.base)).wrapper))
 end
 
 

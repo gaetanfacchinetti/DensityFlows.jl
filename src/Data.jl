@@ -127,12 +127,12 @@ function DataPartition(
 end
 
 
-struct DataArrays{T, N, A<:AbstractArray{T, N}, B<:AbstractVector{<:Int}}
+struct DataArrays{T, N, A<:AbstractArray{T, N}, B<:AbstractArray{T, N}, C<:AbstractVector{<:Int}}
 
     x::A # raw data
-    θ::A # raw parameters
+    θ::B # raw parameters
       
-    partition::DataPartition{B}
+    partition::DataPartition{C}
 
 end
 
@@ -155,16 +155,16 @@ See also [`DataPartition`](@ref) and [`MetaData`](@ref).
 function DataArrays(
     x::AbstractArray{T, N}, 
     θ::AbstractArray{T, N} = dflt_θ(x);
-    f_training::T = 0.9, 
-    f_validation::T = 0.1, 
+    f_training::X = 0.9, 
+    f_validation::X = 0.1, 
     rng::Random.AbstractRNG = Random.default_rng()
-    ) where {T, N}
+    ) where {T, N, X}
 
     @assert length(size(x)) >= 2 "data must be an array of size (d, i1, ...) at least"
     @assert all(size(x)[2:N] .== size(θ)[2:N]) "x and θ must have the same size -- except for the first dimension"
     
     partition = DataPartition(size(x, 2), f_training, f_validation, rng)
-    return DataArrays(x, θ, partition)
+    return DataArrays{T, N, typeof(x), typeof(θ), typeof(partition.training)}(x, θ, partition)
 
 end
 

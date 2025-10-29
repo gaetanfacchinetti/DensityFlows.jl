@@ -124,7 +124,13 @@ function ChainRulesCore.rrule(
         
         u_af = selectdim(u, 1, axis_af)
 
-        s̄ = - z̄_af .* (u_af .- t) .* exp.(-s) - reshape(j̄, size(s))
+        # create copies of log_det_jac matching size of s
+        shaped_j̄ = similar(s, size(s))
+        @inbounds for i in 1:size(s, 1)
+            selectdim(shaped_j̄, 1, i) .= j̄
+        end
+
+        s̄ = - z̄_af .* (u_af .- t) .* exp.(-s) .- shaped_j̄
         t̄ = - z̄_af .* exp.(-s)
         
         ū = zeros(T, size(u))
