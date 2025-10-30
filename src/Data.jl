@@ -28,6 +28,7 @@ export minimum_θ, maximum_θ
 export normalize_input, normalize_input!
 export resize_output, resize_output!
 export dflt_θ
+export number_dimensions, number_conditions
 
 
 @doc raw"""
@@ -201,7 +202,7 @@ end
 
     normalise_input(x, x_min, x_max)
 
-Normalize input between ``[-1, 1]``. 
+Normalize input between ``[0, 1]``. 
 
 ```math
     y = \frac{x - x_{\rm min}}{x_{\rm max} - x_{\rm min}}
@@ -244,7 +245,7 @@ end
 
     normalise_input!(x, x_min, x_max)
 
-Normalize input between ``[-1, 1]`` in place. 
+Normalize input between ``[0, 1]`` in place. 
 
 See also [`normalize_input`](@ref) and [`resize_output!`](@ref).
 """

@@ -56,6 +56,8 @@ end
     CouplingLayer([T=RNVPCouplingLayer, ] axes; kws...)
     CouplingLayer([T=RNVPCouplingLayer, ] d, j = d ÷ 2; n=0, reverse=false, kws...)
     CouplingLayer([T=RNVPCouplingLayer, ] d, mask; n=0, kws...)
+    CouplingLayer([T=RNVPCouplingLayer, ] data, mask; kws...)
+    CouplingLayer([T=RNVPCouplingLayer, ] data, j = d ÷ 2; reverse=false, kws...)
     
     CouplingLayer(t_net, axes)
     CouplingLayer(s_net, t_net, axes)
@@ -83,6 +85,7 @@ By default `s` and `t` are built with `Dense` neural networks.
 - `d::Int`: dimension of the flow.
 - `j::Int`: dimension cut (default is `d`÷2).
 - `mask::Vector{Int}`: dimensions that are affected by the coupling.
+- `data::DataArrays`: input data arrays
 
 # Keywords arguments
 - `n::Int`: number of conditions / parameters (default is 0).
@@ -104,7 +107,6 @@ See also [`CouplingAxes`](@ref).
 """
 CouplingLayer
 
-
 CouplingLayer(t_net::Flux.Chain, axes::CouplingAxes) = NICECouplingLayer(t_net, axes)
 CouplingLayer(s_net::Flux.Chain, t_net::Flux.Chain, axes::CouplingAxes) = RNVPCouplingLayer(s_net, t_net, axes)
 
@@ -113,6 +115,10 @@ function CouplingLayer(
     axes::CouplingAxes;
     n_sublayers_t::Int = 2, 
     n_sublayers_s::Int = 2,
+    hidden_dim_t::Int = 32,
+    hidden_dim_s::Int = 32,
+    σ_t::Function = Flux.relu,
+    σ_s::Function = Flux.relu,
     kws...
     ) where {T<:CouplingLayer}
  
@@ -120,10 +126,10 @@ function CouplingLayer(
     input_dim  = length(axes.axis_nn)
     output_dim = length(axes.axis_af)
 
-    t_net = _dflt_net(input_dim, output_dim, n_sublayers_t; kws...)
+    t_net = _dflt_net(input_dim, output_dim, n_sublayers_t; hidden_dim = hidden_dim_t, σ = σ_t, kws...)
     (T === NICECouplingLayer) && return T(t_net, axes)
     
-    s_net = _dflt_net(input_dim, output_dim, n_sublayers_s; kws...)
+    s_net = _dflt_net(input_dim, output_dim, n_sublayers_s; hidden_dim = hidden_dim_s, σ = σ_s, kws...)
 
     return T(s_net, t_net, axes)
 
@@ -131,10 +137,22 @@ end
 
 
 CouplingLayer(axes::CouplingAxes; kws...) = CouplingLayer(RNVPCouplingLayer, axes; kws...)
+
 CouplingLayer(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = CouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+CouplingLayer(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingLayer(T, CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+
 CouplingLayer(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = CouplingLayer(CouplingAxes(d, mask, n=n); kws...)
-CouplingLayer(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
-CouplingLayer(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:CouplingLayer} = CouplingLayer(CouplingAxes(d, mask, n=n); kws...)
+CouplingLayer(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:CouplingLayer} = CouplingLayer(T, CouplingAxes(d, mask, n=n); kws...)
 
+CouplingLayer(data::DataArrays, j::Int; reverse::Bool = false, kws...) = CouplingLayer(CouplingAxes(data, j, reverse=reverse); kws...)
+CouplingLayer(::Type{T}, data::DataArrays, j::Int; kws...) where {T<:CouplingLayer} = CouplingLayer(T, CouplingAxes(data, j, reverse=reverse); kws...)
 
+CouplingLayer(data::DataArrays; reverse::Bool = false, kws...) = CouplingLayer(CouplingAxes(data, reverse=reverse); kws...)
+CouplingLayer(::Type{T}, data::DataArrays; reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingLayer(T, CouplingAxes(data, reverse=reverse); kws...)
+CouplingLayer(t_net::Flux.Chain, data::DataArrays; reverse::Bool = false) = CouplingLayer(t_net, CouplingAxes(data, reverse=reverse))
+CouplingLayer(s_net::Flux.Chain, t_net::Flux.Chain, data::DataArrays; reverse::Bool = false) = CouplingLayer(s_net, t_net, CouplingAxes(data, reverse=reverse))
 
+CouplingLayer(data::DataArrays, mask::AbstractVector{Int}; kws...) = CouplingLayer(CouplingAxes(data, mask); kws...)
+CouplingLayer(::Type{T}, data::DataArrays, mask::AbstractVector{Int}; kws...) where {T<:CouplingLayer}  = CouplingLayer(T, CouplingAxes(data, mask); kws...)
+CouplingLayer(t_net::Flux.Chain, data::DataArrays, mask::AbstractArray{Int}) = CouplingLayer(t_net, CouplingAxes(data, mask))
+CouplingLayer(s_net::Flux.Chain, t_net::Flux.Chain, data::DataArrays, mask::AbstractArray{Int}) = CouplingLayer(s_net, t_net, CouplingAxes(data, mask))

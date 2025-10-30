@@ -110,11 +110,17 @@ FlowChain(n::Int, args...; kws...) = FlowChain(CouplingBlock, n, args...; kws...
 Make one `FlowChain` from multiple chains or adding flow elements.
 """
 concatenate(x::FlowChain...) = concatenate(x)
-concatenate(x::Tuple{Vararg{FlowChain}}) = FlowChain(vcat([y.layers for y in x]...))
 concatenate(x::FlowChain, y::FlowElement...) = FlowChain(x.layers..., y...)
 concatenate(x::Tuple{Vararg{FlowElement}}, y::FlowChain) = FlowChain(x..., y.layers...)
 concatenate(x::FlowElement, y::FlowChain) = FlowChain(x, y.layers...)
 
+function concatenate(x::Tuple{Vararg{FlowChain}})
+    layers = []
+    for y in x, l in y.layers
+        push!(layers, l)
+    end
+    return FlowChain(layers)
+end
 
 for fname ∈ (
     :(Base.getindex), 

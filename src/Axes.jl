@@ -43,10 +43,25 @@ function summarize(obj::CouplingAxes)
 end
 
 
+function ==(x::CouplingAxes, y::CouplingAxes)
+
+    (x.d != y.d) && return false
+    (x.n != y.n) && return false
+    (sort(x.axis_id) != sort(y.axis_id)) && return false
+    (sort(x.axis_af) != sort(y.axis_af)) && return false
+    (sort(x.axis_nn) != sort(y.axis_nn)) && return false
+
+    return true
+    
+end
+
+
 @doc raw"""
 
     CouplingAxes(d, mask; kws )
     CouplingAxes(d, j=d÷2; kws...)
+    CouplingAxes(data, mask)
+    CouplingAxes(data, j=d÷2; reverse)
     
 Create axes for CouplingLayer.
 
@@ -98,6 +113,10 @@ function CouplingAxes(
 
 end
 
+
+CouplingAxes(data::DataArrays, mask::AbstractVector{Int}) = CouplingAxes(number_dimensions(data), mask, n = number_conditions(data))
+CouplingAxes(data::DataArrays; reverse::Bool = false) = CouplingAxes(number_dimensions(data), number_dimensions(data) ÷ 2, n = number_conditions(data), reverse = reverse)
+CouplingAxes(data::DataArrays, j::Int; reverse::Bool = false) = CouplingAxes(number_dimensions(data), j, n = number_conditions(data), reverse = reverse)
 
 
 @doc raw"""
