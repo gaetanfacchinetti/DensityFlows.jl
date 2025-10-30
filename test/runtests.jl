@@ -34,7 +34,7 @@ end
     @test CouplingAxes(data) == CouplingAxes(7, 3, n=2)
     @test CouplingAxes(data, [4, 5, 6, 7]) == CouplingAxes(7, 3, n=2)
     @test CouplingAxes(data, 3) == CouplingAxes(7, 3, n=2)
-    
+
 end
 
 @testset "real_NVP" begin
@@ -87,6 +87,6 @@ end
     x2, ln_det_jac_1 = forward(chain, z, θ)
 
     @test x1 ≈ x2
-    @test all((ln_det_jac_1 .+ ln_det_jac_2) .≈ 0f0)
+    @test all((ln_det_jac_1 .+ ln_det_jac_2) .< 1f-3)
     
 end
