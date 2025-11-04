@@ -3,7 +3,9 @@
 [![Build Status](https://github.com/gaetanfacchinetti/DensityFlows.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/gaetanfacchinetti/DensityFlows.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
 
-This module implements some simple **Normalizing Flows** based on Flux.jl. Any comment is welcome.
+A lightweight Julia package based on Flux.jl for scientists who want to emulate probability distributions efficiently using **normalizing flows**. Ready to flow?
+
+[](docs/src/images/distrib.svg)
 
 ## Installation
 
@@ -22,19 +24,6 @@ and install it in a julia shell
 ```julia
 using Pkg; Pkg.develop(path = "<path>/DensityFlows.jl")
 ```
-
-
-## Quick start guide
-
-A simple flow made of 3 blocks of 2 RNVP-coupling layers can be created with
-
-```julia
-using DensityFlows
-x = rand(2, 5000);
-data = DataArrays(x)
-flow = AffineCouplingFlow(3, data.metadata, n_sublayers_s=2, n_sublayers_t=2)
-```
-
 
 ## Documentation
 

@@ -33,6 +33,7 @@ RNVPCouplingLayer
 
 ```@docs
 RNVP_backward
+NICE_backward
 ```
 
 

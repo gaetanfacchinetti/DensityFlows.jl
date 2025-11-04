@@ -36,6 +36,7 @@ forward!
 ```@docs
 save_element
 load_element
+save_flow
 ```
 
 ## Macros
@@ -44,5 +45,10 @@ load_element
 @auto_forward!
 @auto_functor
 @summary
+@flow_wrapper
 @unconditional_wrapper
+@save_as_atomic
+@clear_and_save_flow
+@save_flow
+@load_flow
 ```

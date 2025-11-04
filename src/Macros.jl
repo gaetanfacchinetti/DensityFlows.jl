@@ -25,7 +25,7 @@
 
 
 export @auto_forward!, @auto_functor, @summary
-export @unconditional_wrapper
+export @unconditional_wrapper, @flow_wrapper
 export @save_as_atomic
 export @save_element, @clear_and_save_element
 export @save_flow, @clear_and_save_flow
@@ -93,16 +93,24 @@ macro summary(obj)
 end
 
 
+@doc raw"""
 
+    flow_wrapper(funcs...)
+
+Define the flow version of functions `funcs` defined otherwise for `FlowElement` with
+signature `(::FlowElement, AbstractArray{T}, AbstractArray{T})`,
+f(flow::Flow, y, θ) = f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
+"""
 macro flow_wrapper(funcs...)
     return esc(Expr(:block, 
     [quote
-        function $f(flow::Flow, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
+        function $f(flow::Flow{T}, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
             $f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
         end
     end 
     for f in funcs]...))
 end
+
 
 
 @doc raw"""
@@ -123,6 +131,13 @@ end
 save_element_atomic() = nothing
 load_element() = nothing
 
+
+@doc raw"""
+
+    save_as_atomic(T)
+
+Make structure T saved in a single JLD2 file.
+"""
 macro save_as_atomic(T)
     
     return esc(
@@ -169,16 +184,37 @@ macro load_element(filename)
     return esc(quote load_element($filename) end)
 end
 
-macro clear_and_save_flow(filename, flow)
-    return esc(quote save_flow($filename, $flow, erase = true) end)
+
+@doc raw"""
+
+    clear_and_save_flow(directory, flow)
+
+Clear any pre-existing folder with name `directory` and save flow in that folder.
+
+See [`save_flow`](@ref) and [`@save_flow`](@ref) 
+"""
+macro clear_and_save_flow(directory, flow)
+    return esc(quote save_flow($directory, $flow, erase = true) end)
 end
 
-macro save_flow(filename, flow)
-    return esc(quote save_flow($filename, $flow, erase = false) end)
+@doc raw"""
+
+    save_flow(directory, flow)
+
+Save flow in folder `directory`.
+"""
+macro save_flow(directory, flow)
+    return esc(quote save_flow($directory, $flow, erase = false) end)
 end
 
-macro load_flow(filename)
-    return esc(quote load_flow($filename) end)
+@doc raw"""
+
+    load_flow(directory, flow)
+
+Load flow from folder `directory`.
+"""
+macro load_flow(directory)
+    return esc(quote load_flow($directory) end)
 end
 
 

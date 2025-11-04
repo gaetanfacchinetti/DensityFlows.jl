@@ -313,6 +313,14 @@ end
 ###########################################################
 ## Save / load flow
 
+@doc raw"""
+
+    save_flow(directory, flow, erase = false)
+
+Save flow in the folder `directory`. Clear it before if `erase` is `true`.
+
+See [`@clear_and_save_flow`](@ref) and [`@save_flow`](@ref) 
+"""
 function save_flow(directory::AbstractString, flow::Flow; erase::Bool = false)
 
     make_dir(directory, erase = erase)

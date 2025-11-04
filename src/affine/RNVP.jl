@@ -71,7 +71,7 @@ end
 
     RNVP_backward(s, t, u, axis_id, axis_af)
 
-Return z = (u-t)*exp(s).
+Return z = (u-t)*exp(s), ln(det|J|) = sum(s).
 """
 function RNVP_backward(
     s::AbstractArray{T}, 
