@@ -5,7 +5,12 @@
 
 A lightweight Julia package based on Flux.jl for scientists who want to emulate probability distributions efficiently using **normalizing flows**. Ready to flow?
 
-[](docs/src/images/distrib.svg)
+
+</br>
+
+<p align="center">
+  <img src="docs/src/images/distrib.svg" width="430" height="450" />
+</p>
 
 ## Installation
 
@@ -27,5 +32,5 @@ using Pkg; Pkg.develop(path = "<path>/DensityFlows.jl")
 
 ## Documentation
 
-A public API as well as a preliminary manual can be found here: 
+A public API as well as a manual can be found here: 
 [documentation](https://gaetanfacchinetti.github.io/docs/DensityFlows.jl/).
