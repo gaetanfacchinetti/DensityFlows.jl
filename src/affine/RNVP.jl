@@ -17,6 +17,7 @@
 ##################################################################################
 #
 # Contains functions related to real-NVP affine couplings
+# Based on L. Dinh, J. Sohl-Dickstein, S. Bengio (2017). Density Estimation Using Real NVP. International Conference on Learning Representations. 
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com

@@ -68,6 +68,15 @@ L & \simeq \frac{1}{N} \sum_{i = 1}^N \left[\ln q(f_{\theta_i}^{-1}(x_i)) - \sum
 ```
 
 
+## Layers
+
+Currently, only NICE and RNVP coupling layers are implemented.
+
+For more information see
+- [Laurent Dinh, David Krueger, Yoshua Bengio (2014). NICE: Non-linear Independent Components Estimation](https://arxiv.org/abs/1410.8516).
+- [L. Dinh, J. Sohl-Dickstein, S. Bengio (2017). Density Estimation Using Real NVP. International Conference on Learning Representations.](https://arxiv.org/abs/1605.08803).
+
+
 ## From here and beyond
 
 In order to get familiar with the code please give a look at the [manual](./manual.md) and at the detailed [example](./example.md). Any comment to the code or suggestion for improvement is welcome, please do so using the GitHub issues page if relevant. Further developement should include the implementation of conditional masked autoregressive flows (CMAF).
