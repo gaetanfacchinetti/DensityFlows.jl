@@ -79,4 +79,4 @@ For more information see
 
 ## From here and beyond
 
-In order to get familiar with the code please give a look at the [manual](./manual.md) and at the detailed [example](./example.md). Any comment to the code or suggestion for improvement is welcome, please do so using the GitHub issues page if relevant. Further developement should include the implementation of conditional masked autoregressive flows (CMAF).
+In order to get familiar with the code please give a look at the [documentation](./documentation.md) and at the detailed [example](./example.md). Any comment to the code or suggestion for improvement is welcome, please do so using the GitHub issues page if relevant. Further developement should include the implementation of conditional masked autoregressive flows (CMAF).

@@ -1,4 +1,4 @@
-# Manual
+# Documentation
 
 Let us assume a $d$-dimensional dataset organised as an `Array{Float32}` called `x` such that `size(x, 1) = d`. Further assume n parameters / conditions gathered into a `Array{Float32}` called `θ` such that `size(θ, 1) = n`. To each `x` value should correspond one `θ` value, i.e `size(x)[2:end] == size(θ)[2:end]`. If these conditions are satisfied one can find the distribution of $x$ knowing $\theta$ from the following steps.
 
@@ -81,7 +81,7 @@ chain = FlowChain(
 
 ## More about the layers
 
-By default coupling layers are set as Real-NVP (ADD REFERENCE) which requires two neural networks called `s` for scaling and `t` for translation. Both of these networks are instances of `Flux.Dense` but their properties can also be modified from the `CouplingLayer`constructor. First, the following two declarations are equivalent.
+By default coupling layers are set as Real-NVP which requires two neural networks called `s` for scaling and `t` for translation. Both of these networks are instances of `Flux.Dense` but their properties can also be modified from the `CouplingLayer`constructor. First, the following two declarations are equivalent.
 ```@example guide
 @summary CouplingLayer(data)
 ```

@@ -24,4 +24,11 @@ logpdf
 pdf
 ```
 
+## Training
+
+```@docs
+train!
+validation_loss
+training_loss
+``` 
 
