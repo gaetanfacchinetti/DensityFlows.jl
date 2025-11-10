@@ -5,6 +5,7 @@
 
 A lightweight Julia package based on Flux.jl for scientists who want to emulate probability distributions efficiently using **normalizing flows**. Ready to flow?
 
+---
 
 </br>
 

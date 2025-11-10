@@ -29,6 +29,7 @@
 
 export Flow, predict, predict!, sample, train!
 export logpdf, pdf
+export training_loss, validation_loss
 
 ##########
 #Flow
@@ -55,6 +56,11 @@ function summarize(obj::Flow)
     println(string(Base.typename(typeof(obj.base)).wrapper))
 end
 
+@doc raw""" training loss of all previous steps """
+training_loss(flow::Flow) = flow.train_loss
+
+@doc raw""" validation loss of all previous states """
+validation_loss(flow::Flow) = flow.valid_loss
 
 
 @doc raw"""
@@ -353,13 +359,31 @@ pdf(flow::Flow{T,D}, x::NTuple{D, AbstractVector{T}}) where {T,D} = exp.(logpdf(
 end
 
 
+@doc raw"""
+
+    train!(flow, data, state; kws...)
+
+Train the flow to match the input distribution.
+
+# Arguments
+- `flow::Flow{T}`: flow to train
+- `data::DataArrays{T}`: data to train on
+- `state::NamedTuple`: optimiser state
+
+# Keyword arguments
+- `epochs::Int`: number of epochs, default is 100
+- `batchsize::Int`: size of each batch, default is 64
+- `shuffle::Bool`: if true, shuffle the data in batches, default is true
+- `verbose::Bool`: if true, output the current state, default is true
+- `debug::Bool`: if true, print extra outputs in case of a strange behaviour, default is false
+"""
 function train!(
     flow::Flow{T},
     data::DataArrays{T}, 
     optimiser_state::NamedTuple; 
     epochs::Int=100,
-    batchsize=64,
-    shuffle=true,
+    batchsize::Int=64,
+    shuffle::Bool=true,
     verbose::Bool=true,
     debug::Bool=false
     ) where {T}

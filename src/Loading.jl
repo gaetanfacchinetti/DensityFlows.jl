@@ -72,7 +72,7 @@ end
 
 # Create a Dense Flux layer from a symbol to be interpreted as a function when evaluated
 function Flux.Dense((in, out)::Pair{<:Integer, <:Integer}, σ::Symbol; init = Flux.glorot_uniform, bias = true)
-    return Dense(init(out, in), bias, @eval (Flux.$σ))
+    return Dense(Flux.init(out, in), bias, @eval (Flux.$σ))
 end
 
 function save_element(filename::AbstractString, model::Flux.Chain)

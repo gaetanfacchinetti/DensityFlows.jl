@@ -34,6 +34,20 @@ struct NormalizationLayer{T, U<:AbstractVector{T}} <: NormalizationElement
     β::T
 end
 
+@doc raw""" 
+
+    NormalizationLayer(x, α, β)
+
+Create an overall normalization layer for overall dataset.
+
+# Arguments
+- `x::Union{AbstractArray{T, N}, DataArrays{T, N}}`: data
+- `α::T`: minimum value of the output
+- `β::T`: maximum value of the output
+
+!!! todo "Batch normalization"
+    More sophisticated batch normalization layers are not yet implemented.
+"""
 function NormalizationLayer(x::AbstractArray{T, N}, α::T = T(0), β::T = T(1)) where {T, N}
     x_min = vec(minimum(x, dims=2:N))
     x_max = vec(maximum(x, dims=2:N))
@@ -41,6 +55,8 @@ function NormalizationLayer(x::AbstractArray{T, N}, α::T = T(0), β::T = T(1)) 
     @assert β > α "Bounds of the normalisation need to be in the correct order, β > α."
     return NormalizationLayer(x_min, x_max, α, β)
 end
+
+NormalizationLayer(x::DataArrays{T, N}, α::T = T(0), β::T = T(1)) where {T, N} = NormalizationLayer(x.x, α, β)
 
 Flux.@layer NormalizationLayer trainable=()
 @auto_functor NormalizationLayer

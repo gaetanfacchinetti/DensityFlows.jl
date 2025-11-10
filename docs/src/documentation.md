@@ -48,7 +48,7 @@ in which case
 @summary CouplingLayer(7, 3, n=2, reverse=true)
 ```
 
-Layers can then be stacked in a `chain` to create a flow. An example would be
+Layers can then be stacked in a [`FlowChain`](@ref) to create a flow. An example would be
 ```@example guide
 chain = FlowChain(
     CouplingLayer(data, [4, 5, 6, 7]), 
@@ -58,7 +58,13 @@ chain = FlowChain(
     )
 @summary chain
 ```
-where good practice is to place a `NormalizationLayer` at the end to increase the performances of the network and avoid `NaN`s.
+where good practice is to place a [`NormalizationLayer`](@ref) at the end to increase the performances of the network and avoid `NaN`s.
+
+!!! warning "Mixing dimensions"
+    When using RNVP-layers, as implemented by default, the chain should at least contain several layers with the _transformed_ dimensions shuffled from one layer to the other, in order for all dimensions to be _transformed_ at lease once.
+
+!!! tip "One dimensional distribution"
+    RNVP-layers are _diagonal_ in that they only _transform_ one part of the dimensions while taking the other part in input. Emulating a 1 dimensional distribution is thus not straightforward. Emulating a one dimensional distribution with RNVP-layers is nonetheless possible by artificially promoting the distribution to two dimensions, associating any point to a value drawn from a known distribution like a Gaussian distribution.
 
 ## Blocks: combination of layers
 
@@ -81,7 +87,7 @@ chain = FlowChain(
 
 ## More about the layers
 
-By default coupling layers are set as Real-NVP which requires two neural networks called `s` for scaling and `t` for translation. Both of these networks are instances of `Flux.Dense` but their properties can also be modified from the `CouplingLayer`constructor. First, the following two declarations are equivalent.
+By default coupling layers are set as Real-NVP which requires two neural networks called `s` for scaling and `t` for translation. Both of these networks are instances of `Flux.Dense` but their properties can also be modified from the [`CouplingLayer`](@ref) constructor. First, the following two declarations are equivalent.
 ```@example guide
 @summary CouplingLayer(data)
 ```
@@ -109,18 +115,18 @@ flow = Flow(chain, data)
 base = Distributions.MvNormal(zeros(Float32, 7), LinearAlgebra.diagm(ones(FLoat32, 7)))
 flow = Flow(base, chain, data)
 ```
-Then, one needs to define the state of the model and the optimiser
+Then, one needs to define the state of the model and the optimiser.
 ```julia
 state = Optimisers.setup(Optimisers.Adam(1f-3), flow.model)
 ```
-and then call the `train!` function
+Finally one can call the implemented [`train!`](@ref) function.
 ```julia
 train!(flow, data, state, epochs=100, batchsize=64)
 ```
 
 ## Save and load the model
 
-After training the model can be saved using
+After training the model can be saved.
 ```julia
 # if directory "my_flow" does not already exists
 @save_flow "my_flow" flow
@@ -128,7 +134,7 @@ After training the model can be saved using
 # to overwrite any existing directory / model with the same name
 @clear_and_save_flow "my_flow" flow 
 ```
-and loaded back from
+Similarly it can also be loaded back.
 ```julia
 flow = @load_flow "my_flow"
 ```
@@ -136,8 +142,30 @@ flow = @load_flow "my_flow"
 
 ## Use the model
 
-The model can be used to sample new data points or to extract the probability distribution function.
+The model can be used to sample new data points or to extract the probability distribution function. To sample a $(d, r, s)$, with $(r, s)\in \mathbb{N}_*^2$ array of an unconditional flow simply one calls the function [`sample`](@ref).
+```julia
+sample(flow, (r, s))
+```
+If the flow is conditional, values for those conditions $\theta$ need to be provided. There are two possible ways, either you can specify a different value of $\theta$ for each drawn value or give a single value for the entire sample. In the first case one must define `θ::AbstractArray{T, k}` where $k=3$ (in this example) and of size $(n, r, s)$. In the second case, one can introduce the condition as a tuple of size $n$, `θ::NTuple{n, T}`.  One then calls the same function [`sample`](@ref).
+```julia
+sample(flow, (r, s), θ)
+```
+The model can also be used to directly extract the value of the probability distribution function. For a $d$-dimensional flow, define `NTuple{d, Vector{T}}` where every entry is a vector of values where the pdf must be evaluated. For instance, in the case of an unconditional $3$-dimensional flow, one can compute the pdf on points $(x=2, y=3, z=1)$, $(x=2, y=2, z=1)$, $(x=2, y=3, z=4)$ from the following call to [`pdf`](@ref).
+```julia
+res = pdf(flow, ([2], [3, 2], [1, 4]))
 
+# res[1, 1, 1] = pdf(2, 3, 1)
+# res[1, 1, 2] = pdf(2, 3, 4)
+# res[1, 2, 1] = pdf(2, 2, 1)
+# res[1, 2, 2] = pdf(2, 2, 4)
+```
+For a conditional flow, as for sampling case, the conditions can be passed as a tuple of size $n$, `θ::NTuple{n, T}`.
+```julia
+res = pdf(flow, ([2], [3, 2], [1, 4], θ)
+```
+
+!!! info "logpdf"
+    The natural logarithm of the probability distribution funtion $\ln p$ can also be obtained similarly calling [`logpdf`](@ref).
 
 ## To go further: define custom layers
 

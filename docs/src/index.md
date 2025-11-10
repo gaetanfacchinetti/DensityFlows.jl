@@ -70,7 +70,37 @@ L & \simeq \frac{1}{N} \sum_{i = 1}^N \left[\ln q(f_{\theta_i}^{-1}(x_i)) - \sum
 
 ## Layers
 
-Currently, only NICE and RNVP coupling layers are implemented.
+Currently, only NICE and RNVP coupling layers are implemented. They are, _triangular_ layers, which make the evaluation of their jacobian much easier. In practice, every layer can be described as a function mapping a $d$ dimensional vector to another $d$ dimensional vector, which indices are computed as follows
+
+```math
+\begin{equation*}
+[g_{\theta}(z)]_\ell = 
+\begin{cases}
+z_\ell e^{s_\ell\left[\theta, (z_k)_{k \in \mathcal{P}}\right]} + t_\ell \left[\theta, (z_k)_{k \in \mathcal{P}}\right] \quad {\rm if} \quad \ell  \in \overline{\mathcal{P}} \\
+z_\ell \quad {\rm if} \quad \ell \in \mathcal{P} 
+\end{cases}
+\qquad \forall \ell \in [1, d] \, ,
+\end{equation*}
+```
+where $\mathcal{P}$ is a non void subset of $[1, d]$. More particularly, let us assume ${\rm card}(\mathcal{P}) = r$ with $0 < r < d$. Then, the layers _transform_ the dimensions that are in $\overline{\mathcal{P}}$ and leave the dimensions in $\mathcal{P}$ invariant. In addition, $s : \mathcal{E} \times \mathbb{R}^r \to \mathbb{R}^{d-r}$ and $t : \mathcal{E} \times \mathbb{R}^r \to \mathbb{R}^{d-r}$ are two arbitrary functions that can be defined using neural networks. In the case of NICE, $s=0$.
+
+The inverse of this transformation is thus simply
+```math
+\begin{equation*}
+[g^{-1}_{\theta}(x)]_\ell = 
+\begin{cases}
+\left(x_\ell - t_\ell \left[\theta, (x_k)_{k \in \mathcal{P}}\right] \right) e^{-s_\ell\left[\theta, (x_k)_{k \in \mathcal{P}}\right]}  \quad {\rm if} \quad \ell \in \overline{\mathcal{P}} \\
+x_\ell \quad {\rm if} \quad \ell \in \mathcal{P} 
+\end{cases}
+\qquad \forall \ell \in [1, d] \, ,
+\end{equation*}
+```
+and the log jacobian takes the form
+```math
+\begin{equation*}
+\ln | {\rm det} g^{-1}_{\theta}|(x) = -\sum_{\ell \in \overline{\mathcal{P}}} s_\ell\left[\theta, (x_k)_{k \in \mathcal{P}}\right] \, .
+\end{equation*}
+```
 
 For more information see
 - [Laurent Dinh, David Krueger, Yoshua Bengio (2014). NICE: Non-linear Independent Components Estimation](https://arxiv.org/abs/1410.8516).
