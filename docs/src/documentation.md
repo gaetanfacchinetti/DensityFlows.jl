@@ -1,6 +1,6 @@
 # Documentation
 
-Let us assume a $d$-dimensional dataset organised as an `Array{Float32}` called `x` such that `size(x, 1) = d`. Further assume n parameters / conditions gathered into a `Array{Float32}` called `θ` such that `size(θ, 1) = n`. To each `x` value should correspond one `θ` value, i.e `size(x)[2:end] == size(θ)[2:end]`. If these conditions are satisfied one can find the distribution of $x$ knowing $\theta$ from the following steps.
+Let us assume a ``d``-dimensional dataset organised as an `Array{Float32}` called `x` such that `size(x, 1) = d`. Further assume n parameters / conditions gathered into a `Array{Float32}` called `θ` such that `size(θ, 1) = n`. To each `x` value should correspond one `θ` value, i.e `size(x)[2:end] == size(θ)[2:end]`. If these conditions are satisfied one can find the distribution of ``x`` knowing ``\theta`` from the following steps.
 
 ## Prepare the data
 
@@ -98,7 +98,7 @@ Second, properties of the `s` and `t` network can be changed as follows.
 ```@example guide
 @summary CouplingLayer(data, n_sublayers_s=3, n_sublayers_t=4, hidden_dim_s=16, hidden_dim_t=12, σ_s=Flux.relu, σ_t=Flux.sigmoid)
 ```
-Finally then can also be set direclty but one then needs to be carefull with the input and output dimensions. The input dimension should be `number of untransformed dimensions` + $n$ and the output dimension should be `number of transformed dimensions`.
+Finally then can also be set direclty but one then needs to be carefull with the input and output dimensions. The input dimension should be `number of untransformed dimensions` + ``n`` and the output dimension should be `number of transformed dimensions`.
 ```@example guide
 s_net = Flux.Chain([Flux.Dense(5, 32, Flux.sigmoid), Flux.Dense(32, 16, Flux.relu), Flux.Dense(16, 4)])
 t_net = Flux.Chain([Flux.Dense(5, 12, Flux.relu), Flux.Dense(12, 16, Flux.logcosh), Flux.Dense(16, 32, Flux.relu), Flux.Dense(32, 4)])
@@ -142,15 +142,15 @@ flow = @load_flow "my_flow"
 
 ## Use the model
 
-The model can be used to sample new data points or to extract the probability distribution function. To sample a $(d, r, s)$, with $(r, s)\in \mathbb{N}_*^2$ array of an unconditional flow simply one calls the function [`sample`](@ref).
+The model can be used to sample new data points or to extract the probability distribution function. To sample a ``(d, r, s)``, with ``(r, s)\in \mathbb{N}_*^2`` array of an unconditional flow simply one calls the function [`sample`](@ref).
 ```julia
 sample(flow, (r, s))
 ```
-If the flow is conditional, values for those conditions $\theta$ need to be provided. There are two possible ways, either you can specify a different value of $\theta$ for each drawn value or give a single value for the entire sample. In the first case one must define `θ::AbstractArray{T, k}` where $k=3$ (in this example) and of size $(n, r, s)$. In the second case, one can introduce the condition as a tuple of size $n$, `θ::NTuple{n, T}`.  One then calls the same function [`sample`](@ref).
+If the flow is conditional, values for those conditions ``\theta`` need to be provided. There are two possible ways, either you can specify a different value of ``\theta`` for each drawn value or give a single value for the entire sample. In the first case one must define `θ::AbstractArray{T, k}` where ``k=3`` (in this example) and of size ``(n, r, s)``. In the second case, one can introduce the condition as a tuple of size ``n``, `θ::NTuple{n, T}`.  One then calls the same function [`sample`](@ref).
 ```julia
 sample(flow, (r, s), θ)
 ```
-The model can also be used to directly extract the value of the probability distribution function. For a $d$-dimensional flow, define `NTuple{d, Vector{T}}` where every entry is a vector of values where the pdf must be evaluated. For instance, in the case of an unconditional $3$-dimensional flow, one can compute the pdf on points $(x=2, y=3, z=1)$, $(x=2, y=2, z=1)$, $(x=2, y=3, z=4)$ from the following call to [`pdf`](@ref).
+The model can also be used to directly extract the value of the probability distribution function. For a ``d``-dimensional flow, define `NTuple{d, Vector{T}}` where every entry is a vector of values where the pdf must be evaluated. For instance, in the case of an unconditional ``3``-dimensional flow, one can compute the pdf on points ``(x=2, y=3, z=1)``, ``(x=2, y=2, z=1)``, ``(x=2, y=3, z=4)`` from the following call to [`pdf`](@ref).
 ```julia
 res = pdf(flow, ([2], [3, 2], [1, 4]))
 
@@ -159,13 +159,13 @@ res = pdf(flow, ([2], [3, 2], [1, 4]))
 # res[1, 2, 1] = pdf(2, 2, 1)
 # res[1, 2, 2] = pdf(2, 2, 4)
 ```
-For a conditional flow, as for sampling case, the conditions can be passed as a tuple of size $n$, `θ::NTuple{n, T}`.
+For a conditional flow, as for sampling case, the conditions can be passed as a tuple of size ``n``, `θ::NTuple{n, T}`.
 ```julia
 res = pdf(flow, ([2], [3, 2], [1, 4], θ)
 ```
 
 !!! info "logpdf"
-    The natural logarithm of the probability distribution funtion $\ln p$ can also be obtained similarly calling [`logpdf`](@ref).
+    The natural logarithm of the probability distribution funtion ``\ln p`` can also be obtained similarly calling [`logpdf`](@ref).
 
 ## To go further: define custom layers
 

@@ -5,21 +5,21 @@ DensityFlows.jl is a lightweight Julia package for data scientists and physicist
 
 ## Basics of normalizing flows
 
-Let us say we want to emulate a conditional probability $P$ with distribution function $p(x \, |\, \theta)$ (equivalent to a likelihood) for $x\in \mathcal{D} \subset \mathbb{R}^d, \theta \in \mathcal{E} \subset \mathbb{R}^n$, with $d \in \mathbb{N}_*$ and $n \in \mathbb{N}$. To that end we can start from a probability distribution function $Q$ with distribution function $q$ that is known and perform a change of variable from $q$ to $p$. In practice, we thus want to find the diffeomorphism $f_\theta$ that, for $z \sim Q$ satisfies $f_\theta(z) \sim P$. This requirement imposes that $f_\theta$ satisfies
+Let us say we want to emulate a conditional probability ``P`` with distribution function ``p(x \, |\, \theta)`` (equivalent to a likelihood) for ``x\in \mathcal{D} \subset \mathbb{R}^d, \theta \in \mathcal{E} \subset \mathbb{R}^n``, with ``d \in \mathbb{N}_*`` and ``n \in \mathbb{N}``. To that end we can start from a probability distribution function ``Q`` with distribution function ``q`` that is known and perform a change of variable from ``q`` to ``p``. In practice, we thus want to find the diffeomorphism ``f_\theta`` that, for ``z \sim Q`` satisfies ``f_\theta(z) \sim P``. This requirement imposes that ``f_\theta`` satisfies
 
 ```math
 p(x \, |\, \theta) = q(f_\theta^{-1}(x)) \left| {\rm det} \,  J[f_\theta^{-1}](x) \right| \quad \forall (x, \theta) \in \mathcal{D} \times \mathcal{E}
 ```
-with $J[f_\theta^{-1}]$ the Jacobian of the inverse transformation. Moreover, using the properties of the Jacobian, this can also be written
+with ``J[f_\theta^{-1}]`` the Jacobian of the inverse transformation. Moreover, using the properties of the Jacobian, this can also be written
 ```math
 p(x \, |\, \theta) = \frac{q(f_\theta^{-1}(x))}{\left| {\rm det} \,  J[f_\theta](f^{-1}_\theta(x)) \right|} \quad \forall (x, \theta) \in \mathcal{D} \times \mathcal{E}
 ```
 
-Now, let us assume that $f_\theta$ is written as a composition of $m$ elementary diffeomorphisms as follows
+Now, let us assume that ``f_\theta`` is written as a composition of ``m`` elementary diffeomorphisms as follows
 ```math
 f_\theta = g_{\theta, m} \circ g_{\theta, m-1} \circ \dots \circ g_{\theta, 1}.
 ```
-These diffeomorphisms can be defined using neural networks. Then, using the chain rule, for $\theta \in \mathcal{E}$ and $z \in f_\theta^{-1}(\mathcal{D})$, 
+These diffeomorphisms can be defined using neural networks. Then, using the chain rule, for ``\theta \in \mathcal{E}`` and ``z \in f_\theta^{-1}(\mathcal{D})``, 
 ```math
 \begin{equation*}
 \begin{split}
@@ -31,7 +31,7 @@ J[f_\theta](z) & = J[g_{\theta, m} \circ g_{\theta, m-1} \circ \dots \circ  g_{\
 \end{split}
 \end{equation*}
 ```
-Let us now apply this relationship to $z = f_\theta^{-1}(x)$ where $x\in \mathcal{D}$,
+Let us now apply this relationship to ``z = f_\theta^{-1}(x)`` where ``x\in \mathcal{D}``,
 ```math
 \begin{equation*}
 \begin{split}
@@ -48,7 +48,7 @@ In other words, we have shown that the determinant of the Jacobian can be comput
 
 ## Loss function
 
-The loss function associated to the determination of $f_\theta$ is the Kullback-Leibler divergence between $p$ and the _sampled_ distribution $r$
+The loss function associated to the determination of ``f_\theta`` is the Kullback-Leibler divergence between ``p`` and the _sampled_ distribution ``r``
 ```math
 \begin{equation*}
 \begin{split}
@@ -58,7 +58,7 @@ L & = \int  r(x \, | \, \theta) \ln\frac{r(x \, | \, \theta)}{p(x \, | \, \theta
 \end{split}
 \end{equation*}
 ```
-For a sample of $N$ points $\{(x, \theta)_i\}_{i\in [1, N]}$ it can be estimated as
+For a sample of ``N`` points ``\{(x, \theta)_i\}_{i\in [1, N]}`` it can be estimated as
 ```math
 \begin{equation*}
 \begin{split}
@@ -70,7 +70,7 @@ L & \simeq \frac{1}{N} \sum_{i = 1}^N \left[\ln q(f_{\theta_i}^{-1}(x_i)) - \sum
 
 ## Layers
 
-Currently, only NICE and RNVP coupling layers are implemented. They are, _triangular_ layers, which make the evaluation of their jacobian much easier. In practice, every layer can be described as a function mapping a $d$ dimensional vector to another $d$ dimensional vector, which indices are computed as follows
+Currently, only NICE and RNVP coupling layers are implemented. They are, _triangular_ layers, which make the evaluation of their jacobian much easier. In practice, every layer can be described as a function mapping a ``d`` dimensional vector to another ``d`` dimensional vector, which indices are computed as follows
 
 ```math
 \begin{equation*}
@@ -82,7 +82,7 @@ z_\ell \quad {\rm if} \quad \ell \in \mathcal{P}
 \qquad \forall \ell \in [1, d] \, ,
 \end{equation*}
 ```
-where $\mathcal{P}$ is a non void subset of $[1, d]$. More particularly, let us assume ${\rm card}(\mathcal{P}) = r$ with $0 < r < d$. Then, the layers _transform_ the dimensions that are in $\overline{\mathcal{P}}$ and leave the dimensions in $\mathcal{P}$ invariant. In addition, $s : \mathcal{E} \times \mathbb{R}^r \to \mathbb{R}^{d-r}$ and $t : \mathcal{E} \times \mathbb{R}^r \to \mathbb{R}^{d-r}$ are two arbitrary functions that can be defined using neural networks. In the case of NICE, $s=0$.
+where ``\mathcal{P}`` is a non void subset of ``[1, d]``. More particularly, let us assume ``{\rm card}(\mathcal{P}) = a`` with ``0 < a < d``. Then, the layers _transform_ the dimensions that are in ``\overline{\mathcal{P}}`` and leave the dimensions in ``\mathcal{P}`` invariant. In addition, ``s : \mathcal{E} \times \mathbb{R}^a \to \mathbb{R}^{d-a}`` and ``t : \mathcal{E} \times \mathbb{R}^a \to \mathbb{R}^{d-a}`` are two arbitrary functions that can be defined using neural networks. In the case of NICE, ``s=0``.
 
 The inverse of this transformation is thus simply
 ```math

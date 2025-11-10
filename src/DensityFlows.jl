@@ -27,7 +27,6 @@
 module DensityFlows
 
 import Flux
-import Functors
 import Distributions
 import Optimisers
 import Random
