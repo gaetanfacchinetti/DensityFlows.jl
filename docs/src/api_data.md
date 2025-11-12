@@ -27,7 +27,6 @@ resize_output!
 
 ## Other functions
 
-
 ```@docs
 dflt_θ
 ```

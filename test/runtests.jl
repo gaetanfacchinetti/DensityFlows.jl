@@ -1,6 +1,9 @@
 using DensityFlows
 using Test
 
+import JLD2
+import Optimisers
+
 @testset "data" begin
     
     x = 0.2f0 * ones(Float32, 7, 10) 
@@ -87,6 +90,33 @@ end
     x2, ln_det_jac_1 = forward(chain, z, θ)
 
     @test x1 ≈ x2
-    @test all((ln_det_jac_1 .+ ln_det_jac_2) .< 1f-3)
+    @test all((isapprox.(ln_det_jac_1 .+ ln_det_jac_2, 0f0, atol = 2f-6)))
     
+end
+
+@testset "flow" begin
+
+    stored_data = JLD2.jldopen("datatest.jld2")
+    x = stored_data["x"]
+    θ = stored_data["θ"]
+
+    data = DataArrays(x, θ)
+
+    chain = FlowChain(
+        CouplingLayer(data, [1, 2, 3], hidden_dim_s=16,  hidden_dim_t=16), 
+        CouplingLayer(data, [3, 4, 5], hidden_dim_s=16,  hidden_dim_t=16), 
+        CouplingLayer(data, [5, 1, 2], hidden_dim_s=16,  hidden_dim_t=16), 
+        NormalizationLayer(x, -1f0, 1f0)
+        )
+
+    flow = Flow(chain, data)
+    state = Optimisers.setup(Optimisers.Adam(1f-3), flow.model)
+
+    @test typeof(state) <: NamedTuple
+    @test train!(flow, data, state, epochs=5, verbose=false)
+    
+    x_new = sample(flow, (2, 5, 7), (-1f0,))
+
+    @test size(x_new) == (5, 2, 5, 7)
+
 end

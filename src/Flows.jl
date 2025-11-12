@@ -442,4 +442,6 @@ function train!(
         return nothing, nothing
     end
 
+    return true
+
 end
