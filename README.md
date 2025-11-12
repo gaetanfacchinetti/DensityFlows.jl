@@ -1,20 +1,12 @@
 # DensityFlows
 
 
-[![Build Status](https://github.com/gaetanfacchinetti/DensityFlows.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/gaetanfacchinetti/DensityFlows.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://gaetanfacchinetti.github.io/docs/DensityFlows.jl/)  [![Build Status](https://github.com/gaetanfacchinetti/DensityFlows.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/gaetanfacchinetti/DensityFlows.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://gaetanfacchinetti.github.io/docs/DensityFlows.jl/)
 
 
 A lightweight Julia package based on [Flux.jl](https://github.com/FluxML/Flux.jl) for scientists who want to emulate probability distributions efficiently using **normalizing flows**. Designed for users with no prior experience, yet flexible enough to let you build and customize your own layers. Ready to flow?
 
----
-
-</br>
-
-<p align="center">
-  <img src="docs/src/images/distrib.svg" width="430" height="450" />
-</p>
 
 ## Installation
 
@@ -29,7 +21,7 @@ If you would like to develop or modify DensityFlows.jl, clone the repository and
 ```bash
 git clone https://github.com/gaetanfacchinetti/DensityFlows.jl.git
 ```
-Then, (in a julia REPL / notebook).
+Then, in a julia REPL / notebook,
 ```julia
 using Pkg; Pkg.develop(path = "<path>/DensityFlows.jl")
 ```
