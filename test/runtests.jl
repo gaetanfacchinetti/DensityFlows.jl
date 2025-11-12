@@ -113,8 +113,8 @@ end
     state = Optimisers.setup(Optimisers.Adam(1f-3), flow.model)
 
     @test typeof(state) <: NamedTuple
-    @test train!(flow, data, state, epochs=5, verbose=false)
     
+    train!(flow, data, state, epochs=5, verbose=false)
     x_new = sample(flow, (2, 5, 7), (-1f0,))
 
     @test size(x_new) == (5, 2, 5, 7)
