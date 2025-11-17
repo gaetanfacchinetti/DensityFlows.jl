@@ -8,30 +8,48 @@
 A lightweight Julia package based on [Flux.jl](https://github.com/FluxML/Flux.jl) for scientists who want to emulate probability distributions efficiently using **normalizing flows**. Designed for users with no prior experience, yet flexible enough to let you build and customize your own layers. Ready to flow?
 
 
-## Installation
+## 🚀 Features
 
-### Recommended installation
+- RealNVP affine coupling layers
+- Flow chains with forward/backward evaluation
+- Log-det Jacobian tracking
+- Custom ChainRules adjoints
+- Conditioning on auxiliary parameters
+- Flux-compatible trainable layers
+- Efficient forward! in-place transforms
+- Tools for building complex invertible models
 
-DensityFlows.jl is not yet registered in the Julia General registry.
-For now, you can install it directly from the GitHub repository as described below.
+## 📦 Installation
 
-### For developpers
+DensityFlows.jl is registered in the Julia **General registry**.
 
-If you would like to develop or modify DensityFlows.jl, clone the repository and install it in development mode:
-```bash
-git clone https://github.com/gaetanfacchinetti/DensityFlows.jl.git
-```
-Then, in a julia REPL / notebook,
+To install the latest released version, simply run:
+
 ```julia
-using Pkg; Pkg.develop(path = "<path>/DensityFlows.jl")
+using Pkg
+Pkg.add("DensityFlows")
 ```
-This setup lets you edit the source code locally, and your changes will be reflected automatically when you use the package.
+To use the latest development version:
+```julia
+Pkg.add(url="https://github.com/gaetanfacchinetti/DensityFlows.jl")
+```
 
-## Quick start guide
+## 📘 Documentation
 
 **A detailed documentation with a public API can be found [here](https://gaetanfacchinetti.github.io/docs/DensityFlows.jl/).**
 
-For $x$ an array of $d$-dimensional sampled data points and $\theta$ an array the associated $n$-dimensional conditions, the following code show how to prepare the data, create a normalizing flow model, train it and use it.
+Source code is documentation is also viewable via Julia’s help system:
+```julia
+using DensityFlows
+
+?FlowChain
+?Flow
+?train!
+```
+
+## ⚡ Quick example
+
+For $x$ an array of $d$-dimensional sampled data points and $\theta$ an array of the associated $n$-dimensional conditions, the following code shows how to prepare the data, create a normalizing flow model, train it and use it.
 
 ```julia
 using DensityFlows
@@ -60,9 +78,27 @@ x_new_1 = sample(flow, 1000, (-1f0, 3f0))
 x_new_2 = sample(flow, 1000, (2f0, sqrt(2)))
 ```
 
-## Contributions and more
+## 🤝 Contributing
 
 Any feedback or suggestions to improve the code are very welcome! If you find a bug, have an idea for a new feature, or think something could be cleaner, feel free to open an issue or submit a pull request.
 
+For developers:
+- Fork the repository
+- Clone your fork
+    ```bash
+    git clone https://github.com/<your-username>/DensityFlows.jl.git
+    ```
+- Activate development mode
+    ```julia
+    using Pkg
+    Pkg.develop(path = "<path-to-your-fork>/DensityFlows.jl")
+    ```
+
+## 📝 License
+
+DensityFlows.jl is released under the GPLv3 license.
+See the [LICENSE](LICENSE) file for details.
+
+## Related packages
 
 For more advanced tools, check out [NormalizingFlows.jl](https://github.com/TuringLang/NormalizingFlows.jl).
