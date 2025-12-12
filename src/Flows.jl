@@ -16,7 +16,7 @@
 # If not, see <https://www.gnu.org/licenses/>.
 ##################################################################################
 #
-# Contains functions related to the affine coupling flows
+# Contains functions related to the full flows
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com
@@ -24,10 +24,7 @@
 ##################################################################################
 
 
-############
-# AffineFlow chain structure
-
-export Flow, predict, predict!, sample, train!
+export Flow, predict, predict!, sample
 export logpdf, pdf
 export training_loss, validation_loss
 
@@ -348,98 +345,3 @@ pdf(flow::Flow{T}, x::AbstractArray{T,N}, θ::Tuple{Vararg{T}}) where {T,N} = ex
 pdf(flow::Flow{T,D,N}, x::NTuple{D, AbstractVector{T}}, θ::NTuple{N, T}) where {T,D,N} = exp.(logpdf(flow, x, θ))
 pdf(flow::Flow{T,D}, x::NTuple{D, AbstractVector{T}}) where {T,D} = exp.(logpdf(flow, x))
 
-
-@inline function loss(
-    z::AbstractArray{T},
-    ln_det_jac::AbstractArray{T},
-    base::Distributions.Distribution,
-    ) where {T}
-
-    return - Distributions.mean(Distributions.logpdf(base, z) .+ ln_det_jac)
-end
-
-
-@doc raw"""
-
-    train!(flow, data, state; kws...)
-
-Train the flow to match the input distribution.
-
-# Arguments
-- `flow::Flow{T}`: flow to train
-- `data::DataArrays{T}`: data to train on
-- `state::NamedTuple`: optimiser state
-
-# Keyword arguments
-- `epochs::Int`: number of epochs, default is 100
-- `batchsize::Int`: size of each batch, default is 64
-- `shuffle::Bool`: if true, shuffle the data in batches, default is true
-- `verbose::Bool`: if true, output the current state, default is true
-- `debug::Bool`: if true, print extra outputs in case of a strange behaviour, default is false
-"""
-function train!(
-    flow::Flow{T},
-    data::DataArrays{T}, 
-    optimiser_state::NamedTuple; 
-    epochs::Int=100,
-    batchsize::Int=64,
-    shuffle::Bool=true,
-    verbose::Bool=true,
-    debug::Bool=false
-    ) where {T}
-    
-    train_data = normalized_training_data(data, flow.metadata)
-    valid_data = normalized_validation_data(data, flow.metadata)
-    
-    train_loader = Flux.DataLoader(train_data; batchsize=batchsize, shuffle=shuffle)
-
-    for _ ∈ 1:epochs
-        
-        for (x_batch, t_batch) ∈ train_loader
-
-            grads = Flux.gradient(flow.model) do m
-            
-                z, ln_det_jac = backward(m, x_batch, t_batch)
-                l = loss(z, ln_det_jac, flow.base)
-
-                # debugging if loss gets NaN
-                if debug && ( (l != l) || isinf(l))
-                    println("$l, $ln_det_jac, $z")
-                    throw(ArgumentError(""))
-                end
-
-                return l 
-                                
-            end
-
-            Optimisers.update!(optimiser_state, flow.model, grads[1])
-
-        end
-    
-        z, ln_det_jac = backward(flow.model, train_data...)
-        train_loss = loss(z, ln_det_jac, flow.base)
-        push!(flow.train_loss, train_loss)
-
-        if debug && ((train_loss != train_loss) || isinf(train_loss))
-            println("Problem with train loss $train_loss")
-            return z, ln_det_jac
-        end
-
-        z, ln_det_jac = backward(flow.model, valid_data...)
-        valid_loss = loss(z, ln_det_jac, flow.base)
-        push!(flow.valid_loss, valid_loss)
-
-        if debug && ((valid_loss != valid_loss) || isinf(valid_loss))
-            println("Problem with valid loss $valid_loss")
-            return z, ln_det_jac
-        end
-
-        verbose && println("epoch: $(length(flow.train_loss)) | train_loss = $train_loss, valid_loss = $valid_loss")
-        
-    end
-
-    if debug
-        return nothing, nothing
-    end
-
-end

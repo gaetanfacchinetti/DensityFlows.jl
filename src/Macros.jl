@@ -30,6 +30,7 @@ export @save_as_atomic
 export @save_element, @clear_and_save_element
 export @save_flow, @clear_and_save_flow
 export @load_element, @load_flow
+export @grad_clamping
 
 
 @doc raw"""
@@ -218,4 +219,32 @@ macro load_flow(directory)
 end
 
 
+
+@doc raw"""
+
+    grad_clamping([value, ] block)
+
+Run block, usually [`train!`](@ref)`(...)`, with smooth tanh gradient clamping for RNVP layers.
+
+Perform the replacement z̄ → value * tanh(z̄ / value) in the gradient evaluation.
+Default value is 3f0.
+"""
+macro grad_clamping(value, block)
+    quote
+        local old = GRAD_CLAMPING[]
+        GRAD_CLAMPING[] = $(esc(value))
+        try
+            $(esc(block))
+        finally
+            GRAD_CLAMPING[] = old
+        end
+    end
+end
+
+
+
+macro grad_clamping(block)
+    # Expand into @grad_clamping 3f0 block
+    return :(@grad_clamping 3f0 $(esc(block)))
+end
 

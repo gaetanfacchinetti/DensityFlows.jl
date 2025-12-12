@@ -211,11 +211,11 @@ Normalize input between ``[0, 1]``.
 See also [`normalize_input!`](@ref) and [`resize_output`](@ref).
 """
 function normalize_input(x::AbstractArray{T, N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T, N} 
-    x_diff = x_max .- x_min
-    y = (x .- x_min) ./ x_diff
-    @views y[x_diff .== zero(T), ntuple(_ -> :, N-1)...] .= zero(T)
-    return y
+    
+    return (x .- x_min) ./ ifelse.(iszero.(x_max .- x_min), one(T), x_max .- x_min) 
+
 end
+
 
 @doc raw"""
 
@@ -249,7 +249,7 @@ Normalize input between ``[0, 1]`` in place.
 
 See also [`normalize_input`](@ref) and [`resize_output!`](@ref).
 """
-@inline function normalize_input!(x::AbstractArray{T}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T}
+@inline function normalize_input!(x::AbstractArray{T,N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T,N}
     x_diff = x_max .- x_min
     x .= (x .- x_min) ./ x_diff
     @views x[x_diff .== zero(T), ntuple(_ -> :, N-1)...] .= zero(T)

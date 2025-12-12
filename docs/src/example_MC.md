@@ -1,4 +1,4 @@
-# Example
+# Example: Monte-Carlo resampling
 
 Let us assume that we have the following data
 
@@ -23,7 +23,7 @@ These data points are represented in the figure below as marks. The underlying _
 ![](images/distrib.svg)
 
 
-Let us now use *DensityFlows* to emulate the probability distribution frunction from the sample. The first step is to define the [`DataArrays`](@ref) object from both ``x`` and ``\theta`` and the [`FlowChain`](@ref). In the FlowChain one can either put [`CouplingBlock`](@ref)s or series of [`CouplingLayer`](@ref)s making sure that we suffle the transformed dimensions as we do here.
+Let us now use *DensityFlows* to emulate the probability distribution function from the sample. The first step is to define the [`DataArrays`](@ref) object from both ``x`` and ``\theta`` and the [`FlowChain`](@ref). In the FlowChain one can either put [`CouplingBlock`](@ref)s or series of [`CouplingLayer`](@ref)s making sure that we suffle the transformed dimensions as we do here.
 
 ```@example 1
 using DensityFlows

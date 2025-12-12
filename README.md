@@ -38,7 +38,7 @@ Pkg.add(url="https://github.com/gaetanfacchinetti/DensityFlows.jl")
 
 **A detailed documentation with a public API can be found [here](https://gaetanfacchinetti.github.io/docs/DensityFlows.jl/).**
 
-Source code is documentation is also viewable via Julia’s help system:
+Source code documentation is also viewable via Julia’s help system:
 ```julia
 using DensityFlows
 

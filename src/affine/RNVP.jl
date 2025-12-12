@@ -27,6 +27,8 @@
 
 export RNVPCouplingLayer, RNVP_backward
 
+const GRAD_CLAMPING = Ref{Float32}(-1f0)
+
 ############
 # Real-NVP layer structure
 
@@ -85,7 +87,7 @@ function RNVP_backward(
     # Compute log-det-Jacobian
     ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
 
-    # because the operation below is can not be treated automatically
+    # because the operation below cannot be automatically
     # differentiated by Zygote, we write our own rrule below
     z = similar(u)
     selectdim(z, 1, axis_id) .= selectdim(u, 1, axis_id)
@@ -119,6 +121,11 @@ function ChainRulesCore.rrule(
     function RNVP_backward_pullback(ȳ)
         
         z̄, j̄ = ȳ
+
+        # gradient clamping for better stability (if turned on)
+        (GRAD_CLAMPING[] > 0) && (z̄ .= T.(GRAD_CLAMPING[] * tanh.(z̄ / GRAD_CLAMPING[])))
+        
+        #z̄, j̄ = clamp.(ȳ, -10.0, 10.0)
 
         z̄_af = selectdim(z̄, 1, axis_af)
         z̄_id = selectdim(z̄, 1, axis_id)

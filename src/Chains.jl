@@ -25,7 +25,7 @@
 
 
 export backward, forward, forward!
-export FlowChain, FlowChainAffine, concatenate, +
+export FlowChain, FlowChainAffine, concatenate
 
 ######################## 
 ## Documentation

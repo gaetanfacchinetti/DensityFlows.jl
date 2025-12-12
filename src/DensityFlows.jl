@@ -34,7 +34,7 @@ import LinearAlgebra
 import JLD2
 import ChainRulesCore
 
-import Base: reverse, ==
+import Base: reverse, ==, +
 import ChainRulesCore: rrule
 import Distributions: sample, logpdf, pdf
 import Flux: Dense
@@ -67,6 +67,8 @@ include("./Layers.jl")
 include("./Blocks.jl")
 include("./Chains.jl")
 include("./Flows.jl")
+include("./Noise.jl")
+include("./Training.jl")
 include("./Loading.jl")
 
 @flow_wrapper backward forward forward!

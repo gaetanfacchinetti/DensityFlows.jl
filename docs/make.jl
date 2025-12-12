@@ -10,7 +10,7 @@ DocMeta.setdocmeta!(
 
 pages = [
     "Overview" => "index.md",
-    "Manual" => ["documentation.md", "example.md"],
+    "Manual" => ["documentation.md", "example_MC.md", "example_PE"],
     "Public API" => ["api_overview.md", "api_coupling.md", "api_data.md", "api_flow.md"]
 ]
 
