@@ -164,7 +164,7 @@ function backward(
     input = selectdim(vcat(θ, x), 1, layer.axes.axis_nn)
     
     # get the output from the s and t neural networks
-    s = layer.s_net(input)
+    s = 5 * Flux.tanh.(layer.s_net(input)/5)
     t = layer.t_net(input)
 
     return RNVP_backward(s, t, x, layer.axes.axis_id, layer.axes.axis_af)
@@ -180,7 +180,7 @@ function forward(
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
-    s = layer.s_net(input)
+    s = 5 * Flux.tanh.(layer.s_net(input)/5)
     t = layer.t_net(input)
 
     # ln|det J[T^{-1}]|
@@ -202,7 +202,7 @@ function forward!(
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
-    s = layer.s_net(input)
+    s = 5 * Flux.tanh.(layer.s_net(input)/5)
     t = layer.t_net(input)
 
     z_af = selectdim(z, 1, layer.axes.axis_af)

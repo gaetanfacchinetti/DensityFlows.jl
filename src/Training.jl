@@ -23,7 +23,9 @@
 #
 ##################################################################################
 
-export train!, loss
+export train!, loss, NFLoss, LogPdfLoss
+
+abstract type NFLoss{T} end
 
 struct TrainingError{T, A<:AbstractArray{T}, V<:AbstractArray{T}} <: Exception 
     
@@ -42,34 +44,44 @@ function print_training_error(e::TrainingError)
     println("ln|J| = $(e.ln_det_jac)")
 end
 
-@inline function max_likelihood_loss(
-    z::AbstractArray{T},
-    ln_det_jac::AbstractArray{T},
-    base::Distributions.Distribution,
-    ) where {T}
+@doc raw"""
 
-    return - Distributions.mean(Distributions.logpdf(base, z) .+ ln_det_jac)
+    LogPdfLoss(base, λ_reg)
+
+Return a loss function structure.
+
+# Arguments
+- `base::Distributions.Distribution`: base distribution (must match that of the flow).
+- `λ_reg::T`: coefficient of the regulator λ_reg E[log|det J|^2] in the loss function, default is zero.
+"""
+struct LogPdfLoss{T, B<:Distributions.Distribution} <: NFLoss{T}
+    base::B
+    λ_reg::T
 end
 
+function (f::LogPdfLoss)(
+    z::AbstractArray{T},
+    ln_det_jac::AbstractArray{T}
+    ) where {T}
 
-function _noise_generator(generator::Function, metadata::MetaData{T}, x::AbstractArray{T}, t::AbstractArray{T}) where {T} 
-    res = generator(x, resize_output(t, metadata.θ_min, metadata.θ_max))
-    return res[1], normalize_input(res[2], metadata.θ_min, metadata.θ_max)
+    return - Distributions.mean(Distributions.logpdf(f.base, z) .+ ln_det_jac .- f.λ_reg * ln_det_jac.^2 )
 end
 
 
 function update_info!(
-    loss::Function,
+    loss::NFLoss{T},
     flow::Flow{T}, 
     train_data::NTuple{2, AbstractArray{T}}, 
     valid_data::NTuple{2, AbstractArray{T}},
     verbose::Bool
     ) where {T}
 
-    z, ln_det_jac = backward(flow.model, train_data...)
-    train_loss = loss(z, ln_det_jac, flow.base)
-    
     ## Training loss
+    x, θ = train_data
+    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    z, ln_det_jac = backward(flow.model, x, t)
+    train_loss = loss(z, ln_det_jac)
+    
     if (train_loss != train_loss) || isinf(train_loss)
         error = TrainingError(z, ln_det_jac, train_loss, "Error on the training loss")
         throw(error)
@@ -78,9 +90,13 @@ function update_info!(
     # proceed with the update
     push!(flow.train_loss, train_loss)
 
+    # ---------------------------------
+
     ## Validation loss
-    z, ln_det_jac = backward(flow.model, valid_data...)
-    valid_loss = loss(z, ln_det_jac, flow.base)
+    x, θ = valid_data
+    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    z, ln_det_jac = backward(flow.model, x, t)
+    valid_loss = loss(z, ln_det_jac)
     
     if (valid_loss != valid_loss) || isinf(valid_loss)
         error = TrainingError(z, ln_det_jac, valid_loss, "Error on the validation loss")
@@ -90,6 +106,8 @@ function update_info!(
     # proceed with the update
     push!(flow.valid_loss, valid_loss)
 
+    # ---------------------------------
+
     # if everything went well print the updated info
     if verbose 
         println("epoch: $(length(flow.train_loss)) | train_loss = $train_loss, valid_loss = $valid_loss")
@@ -98,32 +116,73 @@ function update_info!(
 end
 
 
+@doc raw"""
+
+    train!([noise, ], [loss, ] flow, data, state; kws...)
+
+Train the flow to match the input distribution.
+
+# Arguments
+- `flow::Flow{T}`: flow to train.
+- `data::DataArrays{T}`: data to train on.
+- `state::NamedTuple`: optimiser state.
+- `noise::NoiseModel{T}`: noise model injected during training.
+- `loss::NFLoss{T}`: custom loss struct.
+
+# Keyword arguments
+- `epochs::Int`: number of epochs, default is 100.
+- `batchsize::Int`: size of each batch, default is 64.
+- `shuffle::Bool`: if true, shuffle the data in batches, default is true.
+- `verbose::Bool`: if true, output the current state, default is true.
+
+!!! info
+    A NFLoss struct S should be associated with a functor 
+        `(f::S)(z::AbstractArray{T}, lndj::AbstractArray{T}) where {T}``
+        returning the value of the loss.
+"""
+function train! end
+
 
 function train!(
-    loss::Function,
+    noise::NoiseModel{T},
+    loss::NFLoss{T},
     flow::Flow{T},
-    train_data::NTuple{2, AbstractArray{T}},
-    valid_data::NTuple{2, AbstractArray{T}},
+    data::DataArrays{T},
     optimiser_state::NamedTuple; 
     epochs::Int=100,
     batchsize::Int=64,
     shuffle::Bool=true,
     verbose::Bool=true,
-    noise_generator::Function=(x, θ)->(x, θ),
     ) where {T}
         
+
+
+    # get the training and validation data
+    train_data = training_data(data)
+    valid_data = validation_data(data)
+
+    # partition the data in shuffled batches
     train_loader = Flux.DataLoader(train_data; batchsize=batchsize, shuffle=shuffle)
 
     try
 
         for _ ∈ 1:epochs
+
+            # put the model in train mode
+            Flux.trainmode!(flow.model)
+
             
-            for (x_batch, t_batch) ∈ train_loader
+            for (x_batch, θ_batch) ∈ train_loader
 
                 grads = Flux.gradient(flow.model) do m
                 
-                    z, ln_det_jac = backward(m, _noise_generator(noise_generator, flow.metadata, x_batch, t_batch)...)#x_batch, t_batch_noise)
-                    l = loss(z, ln_det_jac, flow.base)
+                    # generate noisy data from the noise model
+                    x, θ = noisy_data(noise, x_batch, θ_batch)
+                    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+                    
+                    # compute the loss from the data
+                    z, ln_det_jac = backward(m, x, t)
+                    l = loss(z, ln_det_jac)#, flow.base, λ_reg)
 
                     # debugging if loss gets NaN
                     ((l != l) || isinf(l)) && throw(TrainingError(z, ln_det_jac, l, "Error during training"))
@@ -136,6 +195,9 @@ function train!(
                 Optimisers.update!(optimiser_state, flow.model, grads[1])
 
             end
+
+            # put the model back into test mode
+            Flux.testmode!(flow.model)
             
             # update training and validation loss records
             update_info!(loss, flow, train_data, valid_data, verbose)
@@ -144,52 +206,42 @@ function train!(
 
     catch e
         isa(e, TrainingError) && (print_training_error(e); return nothing)
+        Flux.testmode!(flow.model)
         rethrow(e)
     end
 
+
 end
 
 
-@doc raw"""
 
-    train!(flow, data, state; kws...)
-
-Train the flow to match the input distribution.
-
-# Arguments
-- `flow::Flow{T}`: flow to train
-- `data::DataArrays{T}`: data to train on
-- `state::NamedTuple`: optimiser state
-
-# Keyword arguments
-- `epochs::Int`: number of epochs, default is 100
-- `batchsize::Int`: size of each batch, default is 64
-- `shuffle::Bool`: if true, shuffle the data in batches, default is true
-- `verbose::Bool`: if true, output the current state, default is true
-"""
 function train!(
-    loss::Function,
+    loss::NFLoss{T},
     flow::Flow{T}, 
-    data::DataArrays{T}, 
-    optimiser_state::NamedTuple; 
+    args...; 
     kws...
     ) where {T}
 
-    train_data = normalized_training_data(data, flow.metadata)
-    valid_data = normalized_validation_data(data, flow.metadata)
-    
-    train!(loss, flow, train_data, valid_data, optimiser_state; kws...)
+
+    train!(NoNoise(T), loss, flow, args...; kws...)
 
 end
 
 
 function train!(
+    noise::NoiseModel{T},
     flow::Flow{T}, 
-    data::DataArrays{T}, 
-    optimiser_state::NamedTuple; 
+    args...; 
+    λ_reg::T = zero(T),
     kws...
     ) where {T}
 
-    train!(max_likelihood_loss, flow, data, optimiser_state; kws...)
+
+    loss = LogPdfLoss(flow.base, λ_reg)
+    train!(noise, loss, flow, args...; kws...)
 
 end
+
+
+train!(flow::Flow{T}, args...; λ_reg::T = zero(T), kws...) where {T} = train!(NoNoise(T), LogPdfLoss(flow.base, λ_reg), flow, args...; kws...)
+

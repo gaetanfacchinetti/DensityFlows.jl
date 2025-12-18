@@ -48,10 +48,11 @@ macro auto_forward!(T)
         function forward!(
             m::$T, 
             z::AbstractArray{U}, 
-            θ::AbstractArray{U} = dflt_θ(z)
+            args...;
+            kws...
             ) where {U}
 
-            z = forward(m, z, θ)
+            z, _ = forward(m, z, args...; kws...)
             return nothing
     
         end

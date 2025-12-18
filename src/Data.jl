@@ -211,7 +211,7 @@ Normalize input between ``[0, 1]``.
 See also [`normalize_input!`](@ref) and [`resize_output`](@ref).
 """
 function normalize_input(x::AbstractArray{T, N}, x_min::AbstractVector{T}, x_max::AbstractVector{T}) where {T, N} 
-    
+    if size(x, 1) == 0 return x end
     return (x .- x_min) ./ ifelse.(iszero.(x_max .- x_min), one(T), x_max .- x_min) 
 
 end

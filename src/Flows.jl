@@ -24,17 +24,18 @@
 ##################################################################################
 
 
-export Flow, predict, predict!, sample
+export Flow, predict, predict!, sample, sample_with_rejection
 export logpdf, pdf
 export training_loss, validation_loss
 
 ##########
 #Flow
 
-struct Flow{T, D, N, M<:FlowChain, B<:Distributions.Distribution, V<:AbstractVector{T}}
+struct Flow{T, D, N, B<:Distributions.Distribution, M<:FlowElement, V<:AbstractVector{T}}
     
-    model::M
+
     base::B
+    model::M
 
     metadata::MetaData{T, V}
 
@@ -64,7 +65,7 @@ validation_loss(flow::Flow) = flow.valid_loss
 
     Flow([base, ] model, data)
 
-Create a Flow from a model [`FlowChain`](@ref) and for a specific data.
+Create a Flow from a model [`FlowElement`](@ref) and for a specific data.
 
 The data must be passed as a [`DataArrays`](@ref). 
 A spceific `base` distribution can be given, default is multivariate gaussian. 
@@ -73,10 +74,10 @@ Flow
 
 function Flow(
     base::Distributions.Distribution, 
-    model::FlowChain, 
+    model::FlowElement, 
     data::DataArrays{T}, 
-    train_loss::Vector{T}, 
-    valid_loss::Vector{T}
+    train_loss::AbstractVector{T}, 
+    valid_loss::AbstractVector{T}
     ) where {T}
 
     # get the relevant information for the flow
@@ -87,36 +88,30 @@ function Flow(
     θ_max = maximum_θ(data)
 
     metadata = MetaData("", d, n, θ_min, θ_max)
+
+    # put the model in test mode by default
+    Flux.testmode!(model)
    
-    return Flow{T, d, n, typeof(model), typeof(base), typeof(θ_min)}(model, base, metadata, train_loss, valid_loss)
+    return Flow{T, d, n, typeof(base), typeof(model), typeof(θ_min)}(base, model, metadata, train_loss, valid_loss)
 
 end
 
 function Flow(
-    model::FlowChain, 
+    model::FlowElement, 
     data::DataArrays{T}, 
-    train_loss::Vector{T}, 
-    valid_loss::Vector{T}
+    train_loss::AbstractVector{T}, 
+    valid_loss::AbstractVector{T}
     ) where {T}
 
-    # get the relevant information for the flow
-    # and store them in a metadata attribute
     d = number_dimensions(data)
-    n = number_conditions(data)
-    θ_min = minimum_θ(data)
-    θ_max = maximum_θ(data)
-
-    metadata = MetaData("", d, n, θ_min, θ_max)
-
     base = Distributions.MvNormal(zeros(T, d), LinearAlgebra.diagm(ones(T, d)))
-   
-    return Flow{T, d, n, typeof(model), typeof(base), typeof(θ_min)}(model, base, metadata, train_loss, valid_loss)
+    return Flow(base, model, data, train_loss, valid_loss)
 
 end
 
 
-Flow(base::Distributions.Distribution, model::FlowChain, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
-Flow(model::FlowChain, data::DataArrays{T}) where {T} = Flow(model, data, T[], T[]) 
+Flow(base::Distributions.Distribution, model::FlowElement, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
+Flow(model::FlowElement, data::DataArrays{T}) where {T} = Flow(model, data, T[], T[]) 
 
 
 # define a predict function that is the same as the forward function
@@ -184,7 +179,6 @@ end
 sample(rng::Random.AbstractRNG, flow::Flow{T}, dims::Integer, θ::AbstractArray{T} = dflt_θ(T, dims)) where {T} = sample(rng, flow, (dims, ), θ)
 sample(rng::Random.AbstractRNG, flow::Flow{T,D,N}, dims::Integer, θ::NTuple{N, T}) where {T,D,N} = sample(rng, flow, (dims, ), θ)
 
-
 sample(flow::Flow{T}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::AbstractArray{T} = dflt_θ(T, dims)) where {T} = sample(Random.default_rng(), flow, dims, θ)
 sample(flow::Flow{T}, dims::Union{Integer, Tuple{Vararg{Integer}}}, θ::Tuple{Vararg{T}}) where {T} = sample(Random.default_rng(), flow, dims, θ)
 
@@ -209,7 +203,7 @@ function sample_with_rejection(
     while j < n && i < m * n
 
         test = sample(rng, flow, 1, θ)[:, 1]
-        condition(test, θ) && begin r[:, j+1] .= test; j = j+1 end
+        condition(test, collect(θ)) && begin r[:, j+1] .= test; j = j+1 end
         i = i+1
         
     end
@@ -267,13 +261,24 @@ function logpdf end
 
 
 function logpdf(
+    base::Distributions.Distribution,
+    model::FlowElement,
+    x::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
+
+    z, ln_det_jac = backward(model, x, θ)
+    return Distributions.logpdf(base, z) .+ ln_det_jac
+
+end
+
+function logpdf(
     flow::Flow{T},
     x::AbstractArray{T,N},
     θ::AbstractArray{T,N}
     ) where {T,N}
 
-    z, ln_det_jac = backward(flow, x, θ)
-    return Distributions.logpdf(flow.base, z) .+ ln_det_jac
+    return logpdf(flow.base, flow.model, x, θ)
 
 end
 

@@ -27,6 +27,7 @@ pdf
 ## Training
 
 ```@docs
+LogPdfLoss
 train!
 validation_loss
 training_loss

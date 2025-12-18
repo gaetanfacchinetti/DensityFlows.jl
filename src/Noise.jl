@@ -31,6 +31,7 @@ abstract type NoiseGenerator{T} <: NoiseModel{T} end
 
 struct NoNoise{T} <: NoiseGenerator{T} end
 
+NoNoise(::Type{T}) where {T} = NoNoise{T}()
 NoNoise() = NoNoise{Float32}()
 
 (f::NoNoise)(x::AbstractArray{T,N}, θ::AbstractArray{T,N}) where {T,N} = (x, θ)
