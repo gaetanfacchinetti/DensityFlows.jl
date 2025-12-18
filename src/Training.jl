@@ -137,8 +137,8 @@ Train the flow to match the input distribution.
 
 !!! info
     A NFLoss struct S should be associated with a functor 
-        `(f::S)(z::AbstractArray{T}, lndj::AbstractArray{T}) where {T}``
-        returning the value of the loss.
+    `(f::S)(z::AbstractArray{T}, lndj::AbstractArray{T}) where {T}``
+    returning the value of the loss.
 """
 function train! end
 

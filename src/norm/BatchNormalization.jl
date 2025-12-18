@@ -1,0 +1,108 @@
+##################################################################################
+# This file is part of DensityFlows.jl
+#
+# Copyright (c) 2025, Gaétan Facchinetti
+#
+# DensityFlows.jl is free software: you can redistribute it and/or modify it 
+# under the terms of the GNU General Public License as published by 
+# the Free Software Foundation, either version 3 of the License, or any 
+# later version. DensityFlows.jl is distributed in the hope that it will be useful, 
+# but WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU 
+# General Public License along with 21cmCAST. 
+# If not, see <https://www.gnu.org/licenses/>.
+##################################################################################
+#
+# Contains functions related to BatchNormalization
+#
+# author: Gaetan Facchinetti
+# email: gaetanfacc@gmail.com
+#
+##################################################################################
+
+export BatchNormalization
+
+mutable struct BatchNormalisation{T, V<:AbstractVector{T}} <: NormalizationElement
+   
+    const β::V
+    const γ::V
+    
+    const λ::T
+    const ϵ::T
+
+    m::V
+    v::V
+
+    init::Bool
+
+end
+
+Flux.@layer BatchNormalisation trainable=(β, γ)
+
+function BatchNormalisation(::Type{T}, d::Int, λ=T(1e-2), ϵ::T = T(1e-5), init::Bool = false) where {T}
+    β = zeros(T, d)
+    γ = zeros(T, d)
+    m = zeros(T, d)
+    v = zeros(T, d)
+    BatchNormalisation{T, Vector{T}}(β, γ, λ, ϵ, m, v, init)
+end
+
+BatchNormalisation(d::Int; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalisation(Float32, d, λ, ϵ, false)
+
+function backward(
+    layer::BatchNormalisation{T},
+    x::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
+
+    # mean and variance of the batch
+    m = dropdims(Distributions.mean(x, dims=2:N), dims=tuple(collect(2:N)...))
+    v = dropdims(Distributions.var(x, dims=2:N), dims=tuple(collect(2:N)...))
+    
+    if !(layer.init)
+        layer.m = m
+        layer.v = v
+        layer.init = true
+    else
+        # update the average and variance
+        layer.m = (1-layer.λ) * layer.m .+ layer.λ * m
+        layer.v = (1-layer.λ) * layer.v .+ layer.λ * v
+    end
+
+    γ = 5*Flux.tanh.(layer.γ/5)
+
+    ln_det_jac = fill(sum(layer.γ .- log.(layer.v .+ layer.ϵ) ./ 2), size(x)[2:N]...)
+    z = (x .- layer.m) ./ sqrt.(layer.v .+ layer.ϵ)  .* exp.(γ) .+ layer.β
+    
+    return z, ln_det_jac
+
+end
+
+function forward(
+    layer::BatchNormalisation{T},
+    z::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
+
+    γ = 5*Flux.tanh.(layer.γ/5)
+    x = (z .- layer.β) .* exp.(-layer.γ) .* sqrt.(layer.v .+ layer.ϵ) .+ layer.m
+    ln_det_jac = fill(-sum(γ .- log.(layer.v .+ layer.ϵ) ./ 2), size(x)[2:N]...)
+    
+    return x, ln_det_jac
+
+end
+
+function forward!(
+    layer::BatchNormalisation{T},
+    z::AbstractArray{T,N},
+    θ::AbstractArray{T,N}
+    ) where {T,N}
+
+    γ = 5*Flux.tanh.(layer.γ/5)
+    z .= (z .- layer.β) .* exp.(-γ) .* sqrt.(layer.v .+ layer.ϵ) .+ layer.m
+    return nothing 
+
+end
