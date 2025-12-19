@@ -3,10 +3,10 @@
 #
 # Copyright (c) 2025, Gaétan Facchinetti
 #
-# DensityFlows.jl is free software: you can redistribute it and/or modify it 
+# jl is free software: you can redistribute it and/or modify it 
 # under the terms of the GNU General Public License as published by 
 # the Free Software Foundation, either version 3 of the License, or any 
-# later version. DensityFlows.jl is distributed in the hope that it will be useful, 
+# later version. jl is distributed in the hope that it will be useful, 
 # but WITHOUT ANY WARRANTY; without even the implied warranty of 
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
 # See the GNU General Public License for more details.
@@ -23,11 +23,11 @@
 #
 ##################################################################################
 
-export NormalizationElement, NormalizationLayer
+export NormalizationElement, GlobalNormalizationLayer
 
 abstract type NormalizationElement <: FlowElement end
 
-struct NormalizationLayer{T, U<:AbstractVector{T}} <: NormalizationElement
+struct GlobalNormalizationLayer{T, U<:AbstractVector{T}} <: NormalizationElement
     x_min::U
     x_max::U
     α::T
@@ -36,7 +36,7 @@ end
 
 @doc raw""" 
 
-    NormalizationLayer(x, α, β)
+    GlobalNormalizationLayer(x, α, β)
 
 Create an overall normalization layer for overall dataset.
 
@@ -48,21 +48,21 @@ Create an overall normalization layer for overall dataset.
 !!! todo "Batch normalization"
     More sophisticated batch normalization layers are not yet implemented.
 """
-function NormalizationLayer(x::AbstractArray{T, N}, α::T = T(0), β::T = T(1)) where {T, N}
+function GlobalNormalizationLayer(x::AbstractArray{T, N}, α::T = T(0), β::T = T(1)) where {T, N}
     x_min = vec(minimum(x, dims=2:N))
     x_max = vec(maximum(x, dims=2:N))
 
     @assert β > α "Bounds of the normalisation need to be in the correct order, β > α."
-    return NormalizationLayer(x_min, x_max, α, β)
+    return GlobalNormalizationLayer(x_min, x_max, α, β)
 end
 
-NormalizationLayer(x::DataArrays{T, N}, α::T = T(0), β::T = T(1)) where {T, N} = NormalizationLayer(x.x, α, β)
+GlobalNormalizationLayer(x::DataArrays{T, N}, α::T = T(0), β::T = T(1)) where {T, N} = GlobalNormalizationLayer(x.x, α, β)
 
-Flux.@layer NormalizationLayer trainable=()
-@auto_functor NormalizationLayer
+Flux.@layer GlobalNormalizationLayer trainable=()
+@auto_functor GlobalNormalizationLayer
 
-function DensityFlows.backward(
-    nlayer::NormalizationLayer, 
+function backward(
+    nlayer::GlobalNormalizationLayer, 
     x::AbstractArray{T, N},
     θ::AbstractArray{T, N}
     ) where {T, N}
@@ -76,8 +76,8 @@ function DensityFlows.backward(
     return z, ln_det_jac
 end
 
-function DensityFlows.forward(
-    nlayer::NormalizationLayer, 
+function forward(
+    nlayer::GlobalNormalizationLayer, 
     z::AbstractArray{T, N},
     θ::AbstractArray{T, N}
     ) where {T, N}
@@ -92,8 +92,8 @@ function DensityFlows.forward(
 end
 
 
-function DensityFlows.forward!(
-    nlayer::NormalizationLayer, 
+function forward!(
+    nlayer::GlobalNormalizationLayer, 
     z::AbstractArray{T},
     θ::AbstractArray{T}
     ) where {T}
@@ -103,6 +103,6 @@ function DensityFlows.forward!(
 end
 
 
-function summarize(obj::NormalizationLayer)
+function summarize(obj::GlobalNormalizationLayer)
     println("Normalization Layer")
 end

@@ -54,11 +54,11 @@ chain = FlowChain(
     CouplingLayer(data, [4, 5, 6, 7]), 
     CouplingLayer(data, [2, 3, 4, 5]), 
     CouplingLayer(data, [7, 1, 2, 3]), 
-    NormalizationLayer(x, -1f0, 1f0)
+    GlobalNormalizationLayer(x, -1f0, 1f0)
     )
 @summary chain
 ```
-where good practice is to place a [`NormalizationLayer`](@ref) at the end to increase the performances of the network and avoid `NaN`s.
+where good practice is to place a [`GlobalNormalizationLayer`](@ref) at the end to increase the performances of the network and avoid `NaN`s.
 
 !!! warning "Mixing dimensions"
     When using RNVP-layers, as implemented by default, the chain should at least contain several layers with the _transformed_ dimensions shuffled from one layer to the other, in order for all dimensions to be _transformed_ at lease once.

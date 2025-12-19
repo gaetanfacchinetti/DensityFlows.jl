@@ -61,7 +61,7 @@ chain = FlowChain(
     CouplingLayer(data, [1, 5], hidden_dim_s=n_hidden_dim,  hidden_dim_t=n_hidden_dim), 
     CouplingLayer(data, [2, 3], hidden_dim_s=n_hidden_dim,  hidden_dim_t=n_hidden_dim),
     CouplingLayer(data, [4, 5], hidden_dim_s=n_hidden_dim,  hidden_dim_t=n_hidden_dim),
-    NormalizationLayer(data, -1f0, 1f0)
+    GlobalNormalizationLayer(data, -1f0, 1f0)
     )
 
 # create and print a summary of the flow

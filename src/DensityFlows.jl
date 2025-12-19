@@ -27,16 +27,15 @@
 module DensityFlows
 
 import Flux
-import Distributions
 import Optimisers
 import Random
 import LinearAlgebra
 import JLD2
 import ChainRulesCore
+import Statistics
 
 import Base: reverse, ==, +
 import ChainRulesCore: rrule
-import Distributions: sample, logpdf, pdf
 import Flux: Dense
 
 export FlowElement, CouplingLayer, summarize
@@ -58,11 +57,14 @@ summarize(element::FlowElement) = println(element)
 
 
 include("./Macros.jl")
+include("./Distributions.jl")
 include("./Data.jl")
 include("./Axes.jl")
 include("./affine/RNVP.jl")
 include("./affine/NICE.jl")
-include("./norm/Normalization.jl")
+include("./affine/CMAF.jl")
+include("./norm/GlobalNormalization.jl")
+include("./norm/BatchNormalization.jl")
 include("./Layers.jl")
 include("./Blocks.jl")
 include("./Chains.jl")

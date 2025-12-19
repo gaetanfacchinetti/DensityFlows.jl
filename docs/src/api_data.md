@@ -16,7 +16,7 @@ DataPartition
 
 ## Normalization
 ```@docs
-NormalizationLayer
+GlobalNormalizationLayer
 minimum_θ
 maximum_θ
 normalize_input

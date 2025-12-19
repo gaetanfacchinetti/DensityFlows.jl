@@ -54,7 +54,7 @@ Return a loss function structure.
 - `base::Distributions.Distribution`: base distribution (must match that of the flow).
 - `λ_reg::T`: coefficient of the regulator λ_reg E[log|det J|^2] in the loss function, default is zero.
 """
-struct LogPdfLoss{T, B<:Distributions.Distribution} <: NFLoss{T}
+struct LogPdfLoss{T, B<:Distribution{T}} <: NFLoss{T}
     base::B
     λ_reg::T
 end
@@ -64,7 +64,7 @@ function (f::LogPdfLoss)(
     ln_det_jac::AbstractArray{T}
     ) where {T}
 
-    return - Distributions.mean(Distributions.logpdf(f.base, z) .+ ln_det_jac .- f.λ_reg * ln_det_jac.^2 )
+    return - Statistics.mean(logpdf(f.base, z) .+ ln_det_jac .- f.λ_reg * ln_det_jac.^2 )
 end
 
 

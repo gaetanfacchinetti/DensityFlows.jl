@@ -59,7 +59,8 @@ is_atomic(element::Any) = false
 is_atomic(::Type{T}) where {T<:Any} = false
 
 @save_as_atomic CouplingAxes
-@save_as_atomic NormalizationLayer
+@save_as_atomic GlobalNormalizationLayer
+@save_as_atomic BatchNormalizationLayer
 @save_as_atomic MetaData
 
 # generic function save

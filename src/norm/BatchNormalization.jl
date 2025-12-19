@@ -16,16 +16,16 @@
 # If not, see <https://www.gnu.org/licenses/>.
 ##################################################################################
 #
-# Contains functions related to BatchNormalization
+# Contains functions related to BatchNormalizationLayer
 #
 # author: Gaetan Facchinetti
 # email: gaetanfacc@gmail.com
 #
 ##################################################################################
 
-export BatchNormalization
+export BatchNormalizationLayer
 
-mutable struct BatchNormalisation{T, V<:AbstractVector{T}} <: NormalizationElement
+mutable struct BatchNormalizationLayer{T, V<:AbstractVector{T}} <: NormalizationElement
    
     const β::V
     const γ::V
@@ -40,27 +40,27 @@ mutable struct BatchNormalisation{T, V<:AbstractVector{T}} <: NormalizationEleme
 
 end
 
-Flux.@layer BatchNormalisation trainable=(β, γ)
+Flux.@layer BatchNormalizationLayer trainable=(β, γ)
 
-function BatchNormalisation(::Type{T}, d::Int, λ=T(1e-2), ϵ::T = T(1e-5), init::Bool = false) where {T}
+function BatchNormalizationLayer(::Type{T}, d::Int, λ=T(1e-2), ϵ::T = T(1e-5), init::Bool = false) where {T}
     β = zeros(T, d)
     γ = zeros(T, d)
     m = zeros(T, d)
     v = zeros(T, d)
-    BatchNormalisation{T, Vector{T}}(β, γ, λ, ϵ, m, v, init)
+    BatchNormalizationLayer{T, Vector{T}}(β, γ, λ, ϵ, m, v, init)
 end
 
-BatchNormalisation(d::Int; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalisation(Float32, d, λ, ϵ, false)
+BatchNormalizationLayer(d::Int; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, d, λ, ϵ, false)
 
 function backward(
-    layer::BatchNormalisation{T},
+    layer::BatchNormalizationLayer{T},
     x::AbstractArray{T,N},
     θ::AbstractArray{T,N}
     ) where {T,N}
 
     # mean and variance of the batch
-    m = dropdims(Distributions.mean(x, dims=2:N), dims=tuple(collect(2:N)...))
-    v = dropdims(Distributions.var(x, dims=2:N), dims=tuple(collect(2:N)...))
+    m = dropdims(Statistics.mean(x, dims=2:N), dims=tuple(collect(2:N)...))
+    v = dropdims(Statistics.var(x, dims=2:N), dims=tuple(collect(2:N)...))
     
     if !(layer.init)
         layer.m = m
@@ -82,7 +82,7 @@ function backward(
 end
 
 function forward(
-    layer::BatchNormalisation{T},
+    layer::BatchNormalizationLayer{T},
     z::AbstractArray{T,N},
     θ::AbstractArray{T,N}
     ) where {T,N}
@@ -96,7 +96,7 @@ function forward(
 end
 
 function forward!(
-    layer::BatchNormalisation{T},
+    layer::BatchNormalizationLayer{T},
     z::AbstractArray{T,N},
     θ::AbstractArray{T,N}
     ) where {T,N}

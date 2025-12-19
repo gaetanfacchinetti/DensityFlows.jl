@@ -24,14 +24,15 @@
 ##################################################################################
 
 
-export Flow, predict, predict!, sample, sample_with_rejection
+export Flow, predict, predict!
+export sample, sample_with_rejection
 export logpdf, pdf
 export training_loss, validation_loss
 
 ##########
 #Flow
 
-struct Flow{T, D, N, B<:Distributions.Distribution, M<:FlowElement, V<:AbstractVector{T}}
+struct Flow{T, D, N, B<:Distribution{T,D}, M<:FlowElement, V<:AbstractVector{T}}
     
 
     base::B
@@ -72,8 +73,24 @@ A spceific `base` distribution can be given, default is multivariate gaussian.
 """
 Flow
 
+
 function Flow(
-    base::Distributions.Distribution, 
+    base::Distribution{T}, 
+    model::FlowElement, 
+    metadata::MetaData{T, V}, 
+    train_loss::AbstractVector{T}, 
+    valid_loss::AbstractVector{T}
+    ) where {T, V<:AbstractVector{T}}
+
+    # put the model in test mode by default
+    Flux.testmode!(model)
+
+    return Flow{T, metadata.d, metadata.n, typeof(base), typeof(model), typeof(metadata.θ_min)}(base, model, metadata, train_loss, valid_loss)
+
+end
+
+function Flow(
+    base::Distribution{T}, 
     model::FlowElement, 
     data::DataArrays{T}, 
     train_loss::AbstractVector{T}, 
@@ -92,7 +109,7 @@ function Flow(
     # put the model in test mode by default
     Flux.testmode!(model)
    
-    return Flow{T, d, n, typeof(base), typeof(model), typeof(θ_min)}(base, model, metadata, train_loss, valid_loss)
+    return Flow(base, model, metadata, train_loss, valid_loss)
 
 end
 
@@ -104,13 +121,13 @@ function Flow(
     ) where {T}
 
     d = number_dimensions(data)
-    base = Distributions.MvNormal(zeros(T, d), LinearAlgebra.diagm(ones(T, d)))
+    base = StandardGaussianDistribution(T, d)
     return Flow(base, model, data, train_loss, valid_loss)
 
 end
 
 
-Flow(base::Distributions.Distribution, model::FlowElement, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
+Flow(base::Distribution{T}, model::FlowElement, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
 Flow(model::FlowElement, data::DataArrays{T}) where {T} = Flow(model, data, T[], T[]) 
 
 
@@ -156,7 +173,7 @@ function sample(
     # need to remove this assert if in hot loop
     @assert K == M+1 "dimensions θ must match (n, dims...) with n number of trained parameters"
 
-    r = reshape(rand(rng, flow.base, *(dims...)), (D, dims...))
+    r = rand(rng, flow.base, dims)
     forward!(flow, r, θ)
     
     return r
@@ -170,7 +187,7 @@ function sample(
     θ::NTuple{N, T}
     ) where {T,D,N}
     
-    r = reshape(rand(rng, flow.base, *(dims...)), (D, dims...))
+    r = rand(rng, flow.base, dims)
     forward!(flow, r, collect(θ) .* ones(T, (1, dims...)) )
     
     return r
@@ -261,14 +278,14 @@ function logpdf end
 
 
 function logpdf(
-    base::Distributions.Distribution,
+    base::Distribution{T},
     model::FlowElement,
     x::AbstractArray{T,N},
     θ::AbstractArray{T,N}
     ) where {T,N}
 
     z, ln_det_jac = backward(model, x, θ)
-    return Distributions.logpdf(base, z) .+ ln_det_jac
+    return logpdf(base, z) .+ ln_det_jac
 
 end
 
@@ -278,7 +295,8 @@ function logpdf(
     θ::AbstractArray{T,N}
     ) where {T,N}
 
-    return logpdf(flow.base, flow.model, x, θ)
+    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    return logpdf(flow.base, flow.model, x, t)
 
 end
 
@@ -286,11 +304,15 @@ logpdf(flow::Flow{T}, x::AbstractArray{T}) where {T} = logpdf(flow, x, dflt_θ(x
 logpdf(flow::Flow{T}, x::AbstractArray{T,N}, θ::Tuple{Vararg{T}}) where {T,N} = logpdf(flow, x, collect(θ))
 
 
+# NEED TO CHECK THIS FUNCTION
 function logpdf(
     flow::Flow{T,D,N}, 
     x::NTuple{D, AbstractVector{T}}, 
     θ::NTuple{N, T}
     ) where {T,D,N}
+
+    # need to change this to have a more flexible transformation of θ
+    t = normalize_input(collect(θ), flow.metadata.θ_min, flow.metadata.θ_max)
 
     # array of the lengths of the arrays in x
     lens = [length(v) for v in x]
@@ -303,7 +325,7 @@ function logpdf(
     # where p is the product of the length of all 
     # arrays in x. θ must also be of shape (d, p) then
     y = hcat(collect.(collect(Iterators.product(x...)))...) 
-    res .= reshape(logpdf(flow, y, T.(collect(θ)) .* ones(T, 1, *(lens...))), lens...)
+    res .= reshape(logpdf(flow, y, T.(t) .* ones(T, 1, *(lens...))), lens...)
 
     return res
 
