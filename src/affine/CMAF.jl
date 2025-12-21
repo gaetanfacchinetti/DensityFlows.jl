@@ -188,7 +188,7 @@ function backward(
     s = 5 * Flux.tanh.(s / 5)
     
     # ln|det J[T^{-1}]|
-    ln_det_jac = -dropdims(sum(s, dims = 1), dims = 1)
+    ln_det_jac = - reshape(sum(s, dims = 1), size(s)[2:end])
 
     return (x .- μ) .* exp.(-s), ln_det_jac
 end

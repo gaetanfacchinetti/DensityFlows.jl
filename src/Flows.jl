@@ -32,16 +32,31 @@ export training_loss, validation_loss
 ##########
 #Flow
 
-struct Flow{T, D, N, B<:Distribution{T,D}, M<:FlowElement, V<:AbstractVector{T}}
+struct Flow{T, D, N, L, B<:Distribution{T,D}, M<:FlowElement, C<:Conditioner{T, N, L}, V<:AbstractVector{T}}
     
-
     base::B
     model::M
+    conditioner::C
 
-    metadata::MetaData{T, V}
+    train_loss::V
+    valid_loss::V
 
-    train_loss::Vector{T}
-    valid_loss::Vector{T}
+
+    function Flow(
+        base::Distribution{T,D}, 
+        model::FlowElement, 
+        conditioner::Conditioner{T,N,L}, 
+        train_loss::V, 
+        valid_loss::V
+        ) where {T,D,N,L,V<:AbstractVector{T}}
+
+        # put the model in test mode by default
+        Flux.testmode!(model)
+        Flux.testmode!(conditioner)
+
+        return new{T, D, N, L, typeof(base), typeof(model), typeof(conditioner), V}(base, model, conditioner, promote(train_loss, valid_loss)...)
+
+    end 
 
 end
 
@@ -74,20 +89,22 @@ A spceific `base` distribution can be given, default is multivariate gaussian.
 Flow
 
 
-function Flow(
-    base::Distribution{T}, 
-    model::FlowElement, 
-    metadata::MetaData{T, V}, 
-    train_loss::AbstractVector{T}, 
-    valid_loss::AbstractVector{T}
-    ) where {T, V<:AbstractVector{T}}
+# function Flow(
+#     base::Distribution{T,D}, 
+#     model::FlowElement, 
+#     conditioner::Conditioner{T,N,L}, 
+#     train_loss::AbstractVector{T}, 
+#     valid_loss::AbstractVector{T}
+#     ) where {T,D,N,L}
 
-    # put the model in test mode by default
-    Flux.testmode!(model)
+#     # put the model in test mode by default
+#     Flux.testmode!(model)
+#     Flux.testmode!(conditioner)
 
-    return Flow{T, metadata.d, metadata.n, typeof(base), typeof(model), typeof(metadata.θ_min)}(base, model, metadata, train_loss, valid_loss)
+#     return Flow{T, D, N, L, typeof(base), typeof(model), V}(base, model, conditioner, promote(train_loss, valid_loss)...)
 
-end
+# end
+
 
 function Flow(
     base::Distribution{T}, 
@@ -97,19 +114,10 @@ function Flow(
     valid_loss::AbstractVector{T}
     ) where {T}
 
-    # get the relevant information for the flow
-    # and store them in a metadata attribute
-    d = number_dimensions(data)
-    n = number_conditions(data)
-    θ_min = minimum_θ(data)
-    θ_max = maximum_θ(data)
-
-    metadata = MetaData("", d, n, θ_min, θ_max)
-
-    # put the model in test mode by default
-    Flux.testmode!(model)
+    # default conditioner is a normalization of the conditions
+    conditioner = NormalizationConditioner(data)
    
-    return Flow(base, model, metadata, train_loss, valid_loss)
+    return Flow(base, model, conditioner, train_loss, valid_loss)
 
 end
 
@@ -295,7 +303,7 @@ function logpdf(
     θ::AbstractArray{T,N}
     ) where {T,N}
 
-    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    t = transform_condition(flow.conditioner, θ)
     return logpdf(flow.base, flow.model, x, t)
 
 end
@@ -312,7 +320,7 @@ function logpdf(
     ) where {T,D,N}
 
     # need to change this to have a more flexible transformation of θ
-    t = normalize_input(collect(θ), flow.metadata.θ_min, flow.metadata.θ_max)
+    t = transform_condition(flow.conditioner, collect(θ))
 
     # array of the lengths of the arrays in x
     lens = [length(v) for v in x]

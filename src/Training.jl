@@ -78,7 +78,7 @@ function update_info!(
 
     ## Training loss
     x, θ = train_data
-    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    t = transform_condition(flow.conditioner, θ)
     z, ln_det_jac = backward(flow.model, x, t)
     train_loss = loss(z, ln_det_jac)
     
@@ -94,7 +94,7 @@ function update_info!(
 
     ## Validation loss
     x, θ = valid_data
-    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+    t = transform_condition(flow.conditioner, θ)
     z, ln_det_jac = backward(flow.model, x, t)
     valid_loss = loss(z, ln_det_jac)
     
@@ -170,6 +170,7 @@ function train!(
 
             # put the model in train mode
             Flux.trainmode!(flow.model)
+            Flux.trainmode!(flow.conditioner)
 
             
             for (x_batch, θ_batch) ∈ train_loader
@@ -178,7 +179,7 @@ function train!(
                 
                     # generate noisy data from the noise model
                     x, θ = noisy_data(noise, x_batch, θ_batch)
-                    t = normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max)
+                    t = transform_condition(flow.conditioner, θ)
                     
                     # compute the loss from the data
                     z, ln_det_jac = backward(m, x, t)
@@ -198,6 +199,7 @@ function train!(
 
             # put the model back into test mode
             Flux.testmode!(flow.model)
+            Flux.testmode!(flow.conditioner)
             
             # update training and validation loss records
             update_info!(loss, flow, train_data, valid_data, verbose)
@@ -207,6 +209,7 @@ function train!(
     catch e
         isa(e, TrainingError) && (print_training_error(e); return nothing)
         Flux.testmode!(flow.model)
+        Flux.testmode!(flow.conditioner)
         rethrow(e)
     end
 

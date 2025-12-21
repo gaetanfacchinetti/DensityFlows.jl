@@ -152,6 +152,7 @@ function backward(
     θ::AbstractArray{T,N}
     ) where {T,N}
 
+
     n = length(chain)
     x_i, ln_det_jac = backward(chain[end], x, θ)
 

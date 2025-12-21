@@ -101,13 +101,13 @@ end
 
 Define the flow version of functions `funcs` defined otherwise for `FlowElement` with
 signature `(::FlowElement, AbstractArray{T}, AbstractArray{T})`,
-f(flow::Flow, y, θ) = f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
+f(flow::Flow, y, θ) = f(flow.model, y, transform_condition(flow.conditioner, θ))
 """
 macro flow_wrapper(funcs...)
     return esc(Expr(:block, 
     [quote
         function $f(flow::Flow{T}, y::AbstractArray{T}, θ::AbstractArray{T}) where {T}
-            $f(flow.model, y, normalize_input(θ, flow.metadata.θ_min, flow.metadata.θ_max))
+            $f(flow.model, y, transform_condition(flow.conditioner, θ))
         end
     end 
     for f in funcs]...))

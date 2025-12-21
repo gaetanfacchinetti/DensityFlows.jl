@@ -59,8 +59,8 @@ function backward(
     ) where {T,N}
 
     # mean and variance of the batch
-    m = dropdims(Statistics.mean(x, dims=2:N), dims=tuple(collect(2:N)...))
-    v = dropdims(Statistics.var(x, dims=2:N), dims=tuple(collect(2:N)...))
+    m = reshape(Statistics.mean(x, dims=2:N), size(x, 1))
+    v = reshape(Statistics.var(x, dims=2:N), size(x, 1))
     
     if !(layer.init)
         layer.m = m
@@ -74,7 +74,9 @@ function backward(
 
     γ = 5*Flux.tanh.(layer.γ/5)
 
-    ln_det_jac = fill(sum(layer.γ .- log.(layer.v .+ layer.ϵ) ./ 2), size(x)[2:N]...)
+    frame = one.(similar(x, eltype(x), size(x)[2:N]...))
+
+    ln_det_jac = frame .* sum(layer.γ .- log.(layer.v .+ layer.ϵ) ./ 2)
     z = (x .- layer.m) ./ sqrt.(layer.v .+ layer.ϵ)  .* exp.(γ) .+ layer.β
     
     return z, ln_det_jac

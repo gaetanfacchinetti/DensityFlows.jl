@@ -61,7 +61,8 @@ is_atomic(::Type{T}) where {T<:Any} = false
 @save_as_atomic CouplingAxes
 @save_as_atomic GlobalNormalizationLayer
 @save_as_atomic BatchNormalizationLayer
-@save_as_atomic MetaData
+@save_as_atomic NormalizationConditioner #TO DO: CHANGE THIS FOR BETTER FLEXIBILITY
+#@save_as_atomic Conditioner 
 
 # generic function save
 function _save_element(filename::AbstractString, value)
@@ -326,7 +327,7 @@ function save_flow(directory::AbstractString, flow::Flow; erase::Bool = false)
 
     make_dir(directory, erase = erase)
  
-    for field in [:model, :metadata]
+    for field in [:model, :conditioner]
         _save_element(directory * "/" * string(field), getfield(flow, field))
     end
 
@@ -349,7 +350,7 @@ end
 function load_flow(directory::AbstractString)
     
     model = load_element(directory * "/model")
-    metadata = load_element(directory * "/metadata", MetaData)
+    conditioner = load_element(directory * "/conditioner", Conditioner)
     
     try
         

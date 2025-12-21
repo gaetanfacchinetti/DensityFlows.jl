@@ -44,11 +44,8 @@ Create an overall normalization layer for overall dataset.
 - `x::Union{AbstractArray{T, N}, DataArrays{T, N}}`: data
 - `α::T`: minimum value of the output
 - `β::T`: maximum value of the output
-
-!!! todo "Batch normalization"
-    More sophisticated batch normalization layers are not yet implemented.
 """
-function GlobalNormalizationLayer(x::AbstractArray{T, N}, α::T = T(0), β::T = T(1)) where {T, N}
+function GlobalNormalizationLayer(x::AbstractArray{T, N}, α::T = T(-1), β::T = T(1)) where {T, N}
     x_min = vec(minimum(x, dims=2:N))
     x_max = vec(maximum(x, dims=2:N))
 
@@ -70,7 +67,7 @@ function backward(
     x_diff = nlayer.x_max .- nlayer.x_min
     δ = nlayer.β - nlayer.α
     z = (nlayer.β .* (x .- nlayer.x_min)  +  nlayer.α .* (nlayer.x_max .- x) ) ./ x_diff
-    ln_det_jac = - sum(log.(x_diff ./ δ)) .* ones(T, size(x)[2:N]...)
+    ln_det_jac = - sum(log.(x_diff ./ δ)) .* one.(similar(x, eltype(x), size(x)[2:N]))
     # need to add the ones above in order to ensure type stability
 
     return z, ln_det_jac
@@ -85,7 +82,7 @@ function forward(
     x_diff = nlayer.x_max .- nlayer.x_min
     δ = nlayer.β - nlayer.α
     x = (x_diff .* z .- nlayer.α .* nlayer.x_max  .+ nlayer.β .* nlayer.x_min) ./ δ
-    ln_det_jac = +  sum(log.(x_diff ./ δ)) .* ones(T, size(z)[2:N]...)
+    ln_det_jac = +  sum(log.(x_diff ./ δ)) .* one.(similar(z, eltype(z), size(z)[2:N]))
     # need to add the ones above in order to ensure type stability
 
     return x, ln_det_jac

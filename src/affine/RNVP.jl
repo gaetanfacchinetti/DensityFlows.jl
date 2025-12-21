@@ -77,15 +77,15 @@ end
 Return z = (u-t)*exp(s), ln(det|J|) = sum(s).
 """
 function RNVP_backward(
-    s::AbstractArray{T}, 
-    t::AbstractArray{T}, 
-    u::AbstractArray{T}, 
+    s::AbstractArray{T,N}, 
+    t::AbstractArray{T,N}, 
+    u::AbstractArray{T,N}, 
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int}
-    ) where {T}
+    ) where {T,N}
 
     # Compute log-det-Jacobian
-    ln_det_jac = - dropdims(sum(s, dims = 1), dims = 1)
+    ln_det_jac = - reshape(sum(s, dims = 1), size(s)[2:N])
 
     # because the operation below cannot be automatically
     # differentiated by Zygote, we write our own rrule below
@@ -100,12 +100,12 @@ end
 
 function ChainRulesCore.rrule(
     ::typeof(RNVP_backward),
-    s::AbstractArray{T}, 
-    t::AbstractArray{T}, 
-    u::AbstractArray{T},
+    s::AbstractArray{T,N}, 
+    t::AbstractArray{T,N}, 
+    u::AbstractArray{T,N},
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int} 
-    ) where {T}
+    ) where {T,N}
 
     # Evaluate the function
     z, ln_det_jac = RNVP_backward(s, t, u, axis_id, axis_af)
@@ -141,7 +141,7 @@ function ChainRulesCore.rrule(
         s̄ = - z̄_af .* (u_af .- t) .* exp.(-s) .- shaped_j̄
         t̄ = - z̄_af .* exp.(-s)
         
-        ū = zeros(T, size(u))
+        ū = zero.(similar(u)) #zeros(T, size(u))
         selectdim(ū, 1, axis_af) .= z̄_af .* exp.(-s)
         selectdim(ū, 1, axis_id) .= z̄_id
 
