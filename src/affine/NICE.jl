@@ -28,12 +28,91 @@ export NICECouplingLayer, NICE_backward
 ############
 # NICE layer structure
 
-struct NICECouplingLayer{T<:Flux.Chain} <: CouplingLayer
+struct NICECouplingLayer{T, D, N, CT<:FluxChain} <: CouplingLayer{T,D,N}
     
-    t_net::T  
+    t_net::CT
     axes::CouplingAxes
     
 end
+
+
+@doc raw"""
+    
+    NICECouplingLayer(axes; kws...)
+    NICECouplingLayer(d, j = d ÷ 2; n=0, reverse=false, kws...)
+    NICECouplingLayer(d, mask; n=0, kws...)
+    
+    NICECouplingLayer(t_net, axes)
+      
+Create an NICECouplingLayer with NN models `t`.
+
+The layer can be represented as a function `f`
+such that on dimensions where it does not act 
+like the identity it returns
+
+```math
+    f(x) = x * \exp(s) + t \quad {\rm if~forward}
+```
+
+and
+
+```math
+    f^{-1}(z) = \exp(-s) * (z-t) \quad {\rm if~backward} \, .
+```
+
+By default `s` and `t` are built with `Dense` neural networks.
+
+# Arguments
+- `axes::CouplingAxes`.
+- `d::Int`: dimension of the flow.
+- `j::Int`: dimension cut (default is `d`÷2).
+- `mask::Vector{Int}`: dimensions that are affected by the coupling.
+
+# Keywords arguments
+- `n::Int`: number of conditions / parameters (default is 0).
+- `hidden_dim::Int`: number of hidden dimensions `t` (default is 32).
+- `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
+- `σ::Function`: activation function (default is `Flux.relu`).
+- `bias::Bool`: activate bias (default is `true`).
+
+# Example
+```jldoctest
+julia> @summary NICECouplingLayer(3, [1, 3], n=2, hidden_dim=10, n_sublayers_s=1, σ=Flux.tanh)
+NICECouplingLayer | t_net > [3, 10, 10, 2] (172 parameters)
+                  | axes  > (d,n)=(3,2); identity=(2), transformed=(1,3)
+```
+
+See also [`CouplingAxes`](@ref) and [`RNVPCouplingLayer`](@ref).
+"""
+function NICECouplingLayer end 
+
+function NICECouplingLayer(s_net::FluxChain{T}, t_net::FluxChain{T}, axes::CouplingAxes) where {T}
+    return NICECouplingLayer{T, axes.d, axes.n, typeof(s_net), typeof(t_net)}(s_net, t_net, axes)
+end
+
+
+function NICECouplingLayer(
+    axes::CouplingAxes;
+    n_sublayers_t::Int = 2, 
+    hidden_dim_t::Int = 32,
+    σ_t::Function = Flux.relu,
+    kws...
+    )
+ 
+    input_dim  = length(axes.axis_nn)
+    output_dim = length(axes.axis_af)
+
+    t_net = _dflt_net(input_dim, output_dim, n_sublayers_t; hidden_dim = hidden_dim_t, σ = σ_t, kws...)    
+
+    return NICECouplingLayer(t_net, axes)
+
+end
+
+
+NICECouplingLayer(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = NICECouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+NICECouplingLayer(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = NICECouplingLayer(CouplingAxes(d, mask, n=n); kws...)
+
+
 
 Flux.@layer NICECouplingLayer trainable=(t_net,)
 
@@ -46,7 +125,7 @@ Flux.@layer NICECouplingLayer trainable=(t_net,)
 # Define a custom show function
 function summarize(obj::NICECouplingLayer)
 
-    dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
+    dim_t_net = [size(obj.t_net.net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.net.layers]...]
 
     println("NICECouplingLayer | t_net > $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
     print("                  | axes  > ")
@@ -61,14 +140,14 @@ end
 Return z = (u-t), zeros(...).
 """
 function NICE_backward(
-    t::AbstractArray{T,N}, 
+    t::AbstractArray{T,K}, 
     u::AbstractArray{T}, 
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int}
-    ) where {T,N}
+    ) where {T,K}
 
     # Compute log-det-Jacobian
-    ln_det_jac = zeros(T, size(t)[2:N]...) 
+    ln_det_jac = zeros(T, size(t)[2:K]...) 
 
     # because the operation below is can not be treated automatically
     # differentiated by Zygote, we write our own rrule below
@@ -116,10 +195,10 @@ end
 
 
 function backward(
-    layer::NICECouplingLayer, 
-    x::AbstractArray{T,N}, 
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::NICECouplingLayer{T}, 
+    x::AbstractArray{T,K}, 
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     # define the input from the
     input = selectdim(vcat(θ, x), 1, layer.axes.axis_nn)
@@ -133,17 +212,17 @@ end
 
 
 function forward(
-    layer::NICECouplingLayer, 
-    z::AbstractArray{T,N}, 
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::NICECouplingLayer{T}, 
+    z::AbstractArray{T,K}, 
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
     t = layer.t_net(input)
 
     # ln|det J[T^{-1}]|
-    ln_det_jac = zeros(T, size(t)[2:N]...) 
+    ln_det_jac = zeros(T, size(t)[2:K]...) 
 
     x = similar(z)
     selectdim(x, 1, layer.axes.axis_id) .= selectdim(z, 1, layer.axes.axis_id)
@@ -155,9 +234,9 @@ end
 
 function forward!(
     layer::NICECouplingLayer, 
-    z::AbstractArray{T,N}, 
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    z::AbstractArray{T,K}, 
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 

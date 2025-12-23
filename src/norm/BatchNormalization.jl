@@ -25,7 +25,7 @@
 
 export BatchNormalizationLayer
 
-mutable struct BatchNormalizationLayer{T, V<:AbstractVector{T}} <: NormalizationElement
+mutable struct BatchNormalizationLayer{T,D,N,V<:AbstractVector{T}} <: NormalizationElement{T,D,N}
    
     const β::V
     const γ::V
@@ -38,29 +38,47 @@ mutable struct BatchNormalizationLayer{T, V<:AbstractVector{T}} <: Normalization
 
     init::Bool
 
+    n::Integer
 end
 
 Flux.@layer BatchNormalizationLayer trainable=(β, γ)
 
-function BatchNormalizationLayer(::Type{T}, d::Int, λ=T(1e-2), ϵ::T = T(1e-5), init::Bool = false) where {T}
+function BatchNormalizationLayer(
+    β::V, 
+    γ::V, 
+    λ::T, 
+    ϵ::T, 
+    m::V, 
+    v::V, 
+    init::Bool, 
+    n::Integer
+    ) where {T, V<:AbstractVector{T}}
+
+    return BatchNormalizationLayer{T, length(β), n, V}(β, γ, λ, ϵ, m, v, init, n)
+
+end
+
+function BatchNormalizationLayer(::Type{T}, d::Integer, n::Integer, λ::T, ϵ::T, init::Bool = false) where {T}
     β = zeros(T, d)
     γ = zeros(T, d)
     m = zeros(T, d)
     v = zeros(T, d)
-    BatchNormalizationLayer{T, Vector{T}}(β, γ, λ, ϵ, m, v, init)
+    BatchNormalizationLayer{T, d, n, Vector{T}}(β, γ, λ, ϵ, m, v, init, n)
 end
 
-BatchNormalizationLayer(d::Int; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, d, λ, ϵ, false)
+BatchNormalizationLayer(d::Integer; n::Integer, λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, d, n, λ, ϵ, false)
+BatchNormalizationLayer(data::DataArrays{Float32}; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, number_dimensions(data), number_conditions(data), λ, ϵ, false)
+
 
 function backward(
     layer::BatchNormalizationLayer{T},
-    x::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    x::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     # mean and variance of the batch
-    m = reshape(Statistics.mean(x, dims=2:N), size(x, 1))
-    v = reshape(Statistics.var(x, dims=2:N), size(x, 1))
+    m = reshape(Statistics.mean(x, dims=2:K), size(x, 1))
+    v = reshape(Statistics.var(x, dims=2:K), size(x, 1))
     
     if !(layer.init)
         layer.m = m
@@ -74,7 +92,7 @@ function backward(
 
     γ = 5*Flux.tanh.(layer.γ/5)
 
-    frame = one.(similar(x, eltype(x), size(x)[2:N]...))
+    frame = one.(similar(x, eltype(x), size(x)[2:K]...))
 
     ln_det_jac = frame .* sum(layer.γ .- log.(layer.v .+ layer.ϵ) ./ 2)
     z = (x .- layer.m) ./ sqrt.(layer.v .+ layer.ϵ)  .* exp.(γ) .+ layer.β
@@ -85,13 +103,13 @@ end
 
 function forward(
     layer::BatchNormalizationLayer{T},
-    z::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    z::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     γ = 5*Flux.tanh.(layer.γ/5)
     x = (z .- layer.β) .* exp.(-layer.γ) .* sqrt.(layer.v .+ layer.ϵ) .+ layer.m
-    ln_det_jac = fill(-sum(γ .- log.(layer.v .+ layer.ϵ) ./ 2), size(x)[2:N]...)
+    ln_det_jac = fill(-sum(γ .- log.(layer.v .+ layer.ϵ) ./ 2), size(x)[2:K]...)
     
     return x, ln_det_jac
 
@@ -99,9 +117,9 @@ end
 
 function forward!(
     layer::BatchNormalizationLayer{T},
-    z::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    z::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     γ = 5*Flux.tanh.(layer.γ/5)
     z .= (z .- layer.β) .* exp.(-γ) .* sqrt.(layer.v .+ layer.ϵ) .+ layer.m

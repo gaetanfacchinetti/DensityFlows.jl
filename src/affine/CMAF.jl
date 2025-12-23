@@ -41,8 +41,8 @@ Flux.@layer MaskedDense trainable=(w, b)
 
 function MaskedDense(
     ::Type{T}, 
-    in::Int, 
-    out::Int, 
+    in::Integer, 
+    out::Integer, 
     mask::AbstractMatrix{T}; 
     σ = Flux.identity, 
     init = Flux.glorot_uniform
@@ -55,7 +55,7 @@ function MaskedDense(
     return MaskedDense(w, b, mask, σ)
 end
 
-MaskedDense(in::Int, out::Int, args...; kws...) = MaskedDense(Float32, in, out, args...; kws...)
+MaskedDense(in::Integer, out::Integer, args...; kws...) = MaskedDense(Float32, in, out, args...; kws...)
 
 (m::MaskedDense{T})(x::AbstractArray{T}) where {T} = Flux.NNlib.bias_act!(m.σ, m.w .* m.mask * x, m.b)
 
@@ -73,11 +73,8 @@ function assign_degrees(width, d)
     #return shuffle!(repeat(collect(1:d), ceil(Int, width/d))[1:width])
 end
 
-struct CMAFCouplingLayer{T, S<:Union{Tuple{Vararg{<:MaskedDense{T}}}, AbstractVector{<:MaskedDense{T}}}, V<:AbstractVector{Int}} <: CouplingLayer
+struct CMAFCouplingLayer{T, D, N, S<:Union{Tuple{Vararg{<:MaskedDense{T}}}, AbstractVector{<:MaskedDense{T}}}, V<:AbstractVector{<:Integer}} <: CouplingLayer{T,D,N}
         
-    d::Int
-    n::Int
-    
     sub_layers::S
     
     dim2deg::V
@@ -86,25 +83,27 @@ struct CMAFCouplingLayer{T, S<:Union{Tuple{Vararg{<:MaskedDense{T}}}, AbstractVe
 end
 
 function CMAFCouplingLayer(
-    d::Int,
-    n::Int,
     xs::Union{Tuple{Vararg{<:MaskedDense{T}}}, AbstractVector{<:MaskedDense{T}}},
-    dim2deg::AbstractVector{Int},
-    deg2dim::AbstractVector{Int},
+    dim2deg::AbstractVector{<:Integer},
+    deg2dim::AbstractVector{<:Integer},
     ) where {T} 
     
+    # infer values of d and n from the network
+    d = length(dim2deg)
+    n = size(xs[1].w, 2) - d
+
     # get the properties of the coupling layer from the sub_layers passed in input
-    return CMAFCouplingLayer{T, typeof(xs), typeof(dim2deg)}(d, n, xs, dim2deg, deg2dim)
+    return CMAFCouplingLayer{T, d, n, typeof(xs), typeof(dim2deg)}(xs, dim2deg, deg2dim)
 end
 
 Flux.@layer CMAFCouplingLayer trainable=(sub_layers)
 
 function CMAFCouplingLayer(
     ::Type{T}, 
-    d::Int, 
-    n::Int,
-    dim2deg::AbstractVector{Int} = Random.randperm(d); 
-    hidden::AbstractVector{Int} = [64,64],
+    d::Integer; 
+    n::Integer,
+    dim2deg::AbstractVector{<:Integer} = Random.randperm(d),
+    hidden::AbstractVector{<:Integer} = [64,64],
     σ::Function = Flux.relu
     ) where {T}
     
@@ -149,18 +148,18 @@ function CMAFCouplingLayer(
     sub_layers[2:end-1] .= [MaskedDense(hidden[i-1], hidden[i], masks[i], σ = σ) for i in 2:m]
     sub_layers[end] = MaskedDense(hidden[end], 2*d, masks[end], σ = identity)
 
-    return CMAFCouplingLayer{T, typeof(sub_layers), typeof(dim2deg)}(d, n, sub_layers, dim2deg, deg2dim)
+    return CMAFCouplingLayer(sub_layers, dim2deg, deg2dim)
 
 end
 
 
-CMAFCouplingLayer(d::Int, n::Int, dim2deg::AbstractVector{Int} = Random.randperm(d), args...; kws...) = CMAFCouplingLayer(Float32, d, n, dim2deg, args...; kws...)
+CMAFCouplingLayer(d::Integer; kws...) = CMAFCouplingLayer(Float32, d; kws...)
 
-function (f::CMAFCouplingLayer{T})(
+function (f::CMAFCouplingLayer{T,D})(
     x::AbstractArray{T}, 
     θ::AbstractArray{T},
-    dim::Union{Int, AbstractVector{Int}},
-    ) where {T}
+    dim::Union{Integer, AbstractVector{<:Integer}},
+    ) where {T,D}
 
     z = vcat(θ, x)
 
@@ -169,14 +168,13 @@ function (f::CMAFCouplingLayer{T})(
     end
 
     μ = selectdim(z, 1, dim)
-    s = selectdim(z, 1, dim .+ f.d)
+    s = selectdim(z, 1, dim .+ D)
 
     return (μ, s)
 
 end
 
-(f::CMAFCouplingLayer{T})(x::AbstractArray{T}, θ::AbstractArray{T}) where {T} = f(x, θ, 1:f.d)
-
+(f::CMAFCouplingLayer{T,D})(x::AbstractArray{T}, θ::AbstractArray{T}) where {T,D} = f(x, θ, 1:D)
 
 function backward(
     layer::CMAFCouplingLayer{T}, 
@@ -195,10 +193,10 @@ end
 
 
 function forward(
-    layer::CMAFCouplingLayer{T},
-    z::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::CMAFCouplingLayer{T,D},
+    z::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,D,K}
 
     x = zeros(T, size(z)...)
     ln_det_jac = zeros(T, size(z)[2:end]...)
@@ -212,7 +210,7 @@ function forward(
 
 
     # reconstruct from the lowest degree to the highest
-    for i in 2:layer.d
+    for i in 2:D
         dim = layer.deg2dim[i]
         μ, _s = layer(x, θ, dim)
         _s = 5 * Flux.tanh.(_s / 5)
@@ -227,10 +225,10 @@ end
 
 
 function forward!(
-    layer::CMAFCouplingLayer{T},
-    z::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::CMAFCouplingLayer{T,D},
+    z::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,D,K}
 
     #x = zeros(T, size(z)...)
     ln_det_jac = zeros(T, size(z)[2:end]...)
@@ -243,7 +241,7 @@ function forward!(
     ln_det_jac .= ln_det_jac .+ _s
 
     # reconstruct from the lowest degree to the highest
-    for i in 2:layer.d
+    for i in 2:D
         dim = layer.deg2dim[i]
         μ, _s = layer(z, θ, dim)
         _s = 5 * Flux.tanh.(_s / 5)

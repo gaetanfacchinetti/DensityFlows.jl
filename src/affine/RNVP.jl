@@ -32,22 +32,115 @@ const GRAD_CLAMPING = Ref{Float32}(-1f0)
 ############
 # Real-NVP layer structure
 
-@doc raw"""
 
-    RNVPCouplingLayer(s_net, t_net, axes)
-
-Structure of a Real-Non-Volume-Preserving affine coupling layer.
-
-Contains 
-"""
-struct RNVPCouplingLayer{T<:Flux.Chain, U<:Flux.Chain} <: CouplingLayer
+struct RNVPCouplingLayer{T, D, N, CS<:FluxChain{T}, CT<:FluxChain{T}} <: CouplingLayer{T,D,N}
     
-    s_net::T
-    t_net::U
+    s_net::CS
+    t_net::CT
 
     axes::CouplingAxes
 
 end
+
+@doc raw"""
+    
+    RNVPCouplingLayer(axes; kws...)
+    RNVPCouplingLayer(d, j = d ÷ 2; n=0, reverse=false, kws...)
+    RNVPCouplingLayer(d, mask; n=0, kws...)
+
+    RNVPCouplingLayer(s_net, t_net, axes)
+      
+Create an RNVPCouplingLayer with NN models `s` and `t`.
+
+The layer can be represented as a function `f`
+such that on dimensions where it does not act 
+like the identity it returns
+
+```math
+    f(x) = x * \exp(s) + t \quad {\rm if~forward}
+```
+
+and
+
+```math
+    f^{-1}(z) = \exp(-s) * (z-t) \quad {\rm if~backward} \, .
+```
+
+By default `s` and `t` are built with `Dense` neural networks.
+
+# Arguments
+- `axes::CouplingAxes`.
+- `d::Int`: dimension of the flow.
+- `j::Int`: dimension cut (default is `d`÷2).
+- `mask::Vector{Int}`: dimensions that are affected by the coupling.
+
+# Keywords arguments
+- `n::Int`: number of conditions / parameters (default is 0).
+- `hidden_dim::Int`: number of hidden dimensions in `s` and `t` (default is 32).
+- `n_sublayers_t::Int`: number of sublayers in `t` (default is 2).
+- `n_sublayers_s::Int`: number of sublayers in `s` (default is 2).
+- `σ::Function`: activation function (default is `Flux.relu`).
+- `bias::Bool`: activate bias (default is `true`).
+
+# Example
+```jldoctest
+julia> @summary RNVPCouplingLayer(3, [1, 3], n=2, hidden_dim=10, n_sublayers_s=1, σ=Flux.tanh)
+RNVPCouplingLayer | s_net > [3, 10, 2] (62 parameters)
+                  | t_net > [3, 10, 10, 2] (172 parameters)
+                  | axes  > (d,n)=(3,2); identity=(2), transformed=(1,3)
+```
+
+See also [`CouplingAxes`](@ref) and and [`NICECouplingLayer`](@ref).
+"""
+function RNVPCouplingLayer end 
+
+function RNVPCouplingLayer(s_net::FluxChain{T}, t_net::FluxChain{T}, axes::CouplingAxes) where {T}
+    return RNVPCouplingLayer{T, axes.d, axes.n, typeof(s_net), typeof(t_net)}(s_net, t_net, axes)
+end
+
+function _dflt_net(
+    input_dim::Int,
+    output_dim::Int,
+    n::Int;
+    hidden_dim::Int = 32,
+    σ::Function = Flux.relu,
+    bias::Bool = true)
+
+        
+    sublayers = (
+        [Flux.Dense(input_dim, hidden_dim, σ, bias = bias)],
+        [Flux.Dense(hidden_dim, hidden_dim, σ, bias = bias) for _ in 1:(n-1)],
+        [Flux.Dense(hidden_dim, output_dim, Flux.identity, bias = bias)]
+    )
+    
+    return FluxChain(vcat(sublayers...)...)
+
+end
+
+function RNVPCouplingLayer(
+    axes::CouplingAxes;
+    n_sublayers_t::Int = 2, 
+    n_sublayers_s::Int = 2,
+    hidden_dim_t::Int = 32,
+    hidden_dim_s::Int = 32,
+    σ_t::Function = Flux.relu,
+    σ_s::Function = Flux.relu,
+    kws...
+    )
+ 
+    input_dim  = length(axes.axis_nn)
+    output_dim = length(axes.axis_af)
+
+    t_net = _dflt_net(input_dim, output_dim, n_sublayers_t; hidden_dim = hidden_dim_t, σ = σ_t, kws...)    
+    s_net = _dflt_net(input_dim, output_dim, n_sublayers_s; hidden_dim = hidden_dim_s, σ = σ_s, kws...)
+
+    return RNVPCouplingLayer(s_net, t_net, axes)
+
+end
+
+
+RNVPCouplingLayer(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = RNVPCouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+RNVPCouplingLayer(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = RNVPCouplingLayer(CouplingAxes(d, mask, n=n); kws...)
 
 # make the coupling layer parameters trainable
 Flux.@layer RNVPCouplingLayer trainable=(s_net, t_net)
@@ -60,8 +153,8 @@ Flux.@layer RNVPCouplingLayer trainable=(s_net, t_net)
 # Define a custom show function
 function summarize(obj::RNVPCouplingLayer)
 
-    dim_s_net = [size(obj.s_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.layers]...]
-    dim_t_net = [size(obj.t_net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.layers]...]
+    dim_s_net = [size(obj.s_net.net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.s_net.net.layers]...]
+    dim_t_net = [size(obj.t_net.net.layers[1].weight, 2), [size(l.weight, 1) for l in obj.t_net.net.layers]...]
 
     println("RNVPCouplingLayer | s_net > $dim_s_net ($(sum(length, Flux.trainables(obj.s_net))) parameters)")
     println("                  | t_net > $dim_t_net ($(sum(length, Flux.trainables(obj.t_net))) parameters)")
@@ -77,15 +170,15 @@ end
 Return z = (u-t)*exp(s), ln(det|J|) = sum(s).
 """
 function RNVP_backward(
-    s::AbstractArray{T,N}, 
-    t::AbstractArray{T,N}, 
-    u::AbstractArray{T,N}, 
+    s::AbstractArray{T,K}, 
+    t::AbstractArray{T,K}, 
+    u::AbstractArray{T,K}, 
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int}
-    ) where {T,N}
+    ) where {T,K}
 
     # Compute log-det-Jacobian
-    ln_det_jac = - reshape(sum(s, dims = 1), size(s)[2:N])
+    ln_det_jac = - reshape(sum(s, dims = 1), size(s)[2:K])
 
     # because the operation below cannot be automatically
     # differentiated by Zygote, we write our own rrule below
@@ -100,12 +193,12 @@ end
 
 function ChainRulesCore.rrule(
     ::typeof(RNVP_backward),
-    s::AbstractArray{T,N}, 
-    t::AbstractArray{T,N}, 
-    u::AbstractArray{T,N},
+    s::AbstractArray{T,K}, 
+    t::AbstractArray{T,K}, 
+    u::AbstractArray{T,K},
     axis_id::AbstractVector{Int},
     axis_af::AbstractVector{Int} 
-    ) where {T,N}
+    ) where {T,K}
 
     # Evaluate the function
     z, ln_det_jac = RNVP_backward(s, t, u, axis_id, axis_af)
@@ -155,10 +248,10 @@ end
 
 
 function backward(
-    layer::RNVPCouplingLayer, 
-    x::AbstractArray{T,N}, 
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::RNVPCouplingLayer{T}, 
+    x::AbstractArray{T,K}, 
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     # define the input from the
     input = selectdim(vcat(θ, x), 1, layer.axes.axis_nn)
@@ -173,10 +266,10 @@ end
 
 
 function forward(
-    layer::RNVPCouplingLayer, 
-    z::AbstractArray{T,N}, 
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::RNVPCouplingLayer{T}, 
+    z::AbstractArray{T,K}, 
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 
@@ -195,10 +288,10 @@ end
 
 
 function forward!(
-    layer::RNVPCouplingLayer, 
-    z::AbstractArray{T,N}, 
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    layer::RNVPCouplingLayer{T}, 
+    z::AbstractArray{T,K}, 
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     input = selectdim(vcat(θ, z), 1, layer.axes.axis_nn)
 

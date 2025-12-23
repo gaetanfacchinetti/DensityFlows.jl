@@ -25,13 +25,14 @@
 
 export NormalizationElement, GlobalNormalizationLayer
 
-abstract type NormalizationElement <: FlowElement end
+abstract type NormalizationElement{T,D,N} <: FlowElement{T,D,N} end
 
-struct GlobalNormalizationLayer{T, U<:AbstractVector{T}} <: NormalizationElement
-    x_min::U
-    x_max::U
+struct GlobalNormalizationLayer{T, D, N, V<:AbstractVector{T}} <: NormalizationElement{T,D,N}
+    x_min::V
+    x_max::V
     α::T
     β::T
+    n::Integer
 end
 
 @doc raw""" 
@@ -45,15 +46,28 @@ Create an overall normalization layer for overall dataset.
 - `α::T`: minimum value of the output
 - `β::T`: maximum value of the output
 """
-function GlobalNormalizationLayer(x::AbstractArray{T, N}, α::T = T(-1), β::T = T(1)) where {T, N}
-    x_min = vec(minimum(x, dims=2:N))
-    x_max = vec(maximum(x, dims=2:N))
 
-    @assert β > α "Bounds of the normalisation need to be in the correct order, β > α."
-    return GlobalNormalizationLayer(x_min, x_max, α, β)
+function GlobalNormalizationLayer(
+    x_min::V, 
+    x_max::V,
+    α::T,
+    β::T,
+    n::Integer
+    ) where {T, V<:AbstractVector{T}}
+
+    return GlobalNormalizationLayer{T, length(x_min), n, V}(x_min, x_max, α, β, n)
 end
 
-GlobalNormalizationLayer(x::DataArrays{T, N}, α::T = T(0), β::T = T(1)) where {T, N} = GlobalNormalizationLayer(x.x, α, β)
+function GlobalNormalizationLayer(x::AbstractArray{T, K}, α::T, β::T; n::Integer) where {T, K}
+    
+    x_min = vec(minimum(x, dims=2:K))
+    x_max = vec(maximum(x, dims=2:K))
+
+    @assert β > α "Bounds of the normalisation need to be in the correct order, β > α."
+    return GlobalNormalizationLayer(x_min, x_max, α, β, n)
+end
+
+GlobalNormalizationLayer(data::DataArrays{T, N}, α::T = T(0), β::T = T(1)) where {T, N} = GlobalNormalizationLayer(data.x, α, β, n = size(data.θ, 1))
 
 Flux.@layer GlobalNormalizationLayer trainable=()
 @auto_functor GlobalNormalizationLayer
@@ -101,5 +115,5 @@ end
 
 
 function summarize(obj::GlobalNormalizationLayer)
-    println("Normalization Layer")
+    println("GlobalNormalization Layer")
 end

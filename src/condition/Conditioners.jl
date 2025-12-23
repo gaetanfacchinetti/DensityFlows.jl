@@ -25,18 +25,28 @@
 
 export Conditioner, transform_condition, NormalizationConditioner
 
-abstract type Conditioner{T,N,L} end
+abstract type Conditioner{T,P,N} end
 
-function transform_condition(cond::Conditioner{T,N}, θ::AbstractArray{T}) where {T,N}
-    @assert N == size(θ, 1)
+function transform_condition(cond::Conditioner{T,P}, θ::AbstractArray{T}) where {T,P}
+    @assert P == size(θ, 1)
     return cond(θ)
 end
 
-struct NormalizationConditioner{T, N, L, U<:AbstractVector{T}} <: Conditioner{T, N, L}
-    θ_min::U
-    θ_max::U
+struct NormalizationConditioner{T, P, N, V<:AbstractVector{T}} <: Conditioner{T, P, N}
+    θ_min::V
+    θ_max::V
     α::T
     β::T
+end
+
+function NormalizationConditioner(
+    θ_min::V,
+    θ_max::V,
+    α::T,
+    β::T
+    ) where {T, V<:AbstractVector{T}}
+
+    return NormalizationConditioner{T, length(θ_min), length(θ_max), V}(θ_min, θ_max, α, β)
 end
 
 function NormalizationConditioner(θ::AbstractArray{T, K}, α::T = T(-1), β::T = T(1)) where {T, K}

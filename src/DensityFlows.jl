@@ -41,10 +41,10 @@ import Flux: Dense
 export FlowElement, CouplingLayer, summarize
 
 @doc raw""" Building blocks of the flow """ 
-abstract type FlowElement end
+abstract type FlowElement{T,D,N} end
 
 # make the difference between containers of multiple simple flows
-abstract type CouplingLayer <: FlowElement end
+abstract type CouplingLayer{T,D,N} <: FlowElement{T,D,N} end
 
 # default behaviour for summarize
 @doc raw"""
@@ -56,6 +56,10 @@ Print a summary for the [`FlowElement`](@ref) `element`.
 summarize(element::FlowElement) = println(element)
 
 
+number_dimensions(element::FlowElement{T,D,N}) where {T,D,N} = D
+number_conditions(element::FlowElement{T,D,N}) where {T,D,N} = N
+
+include("./FluxWrapper.jl")
 include("./Macros.jl")
 include("./Distributions.jl")
 include("./Data.jl")
@@ -66,8 +70,7 @@ include("./affine/NICE.jl")
 include("./affine/CMAF.jl")
 include("./norm/GlobalNormalization.jl")
 include("./norm/BatchNormalization.jl")
-include("./Layers.jl")
-include("./Blocks.jl")
+#include("./Blocks.jl")
 include("./Chains.jl")
 include("./Flows.jl")
 include("./Noise.jl")

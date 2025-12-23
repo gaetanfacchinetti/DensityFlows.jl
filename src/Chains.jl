@@ -75,8 +75,8 @@ function forward! end
 ######################## 
 
 
-struct FlowChain{T<:Union{Tuple, AbstractVector}} <: FlowElement
-    layers::T
+struct FlowChain{T, D, N, C<:Union{Tuple{Vararg{<:FlowElement{T,D,N}}}, AbstractVector{<:FlowElement{T,D,N}}}} <: FlowElement{T, D, N}
+    layers::C
 end
 
 Flux.@layer FlowChain 
@@ -95,6 +95,11 @@ chain of `n` identical blocks of type `T`, with `args...`
 and `kws...` passed to the constructor of `T`.
 """
 function FlowChain end
+
+#function FlowChain(xs::Union{Tuple{Vararg{<:FlowElement{T,D,N}}}, AbstractVector{<:FlowElement{T,D,N}}}) where {T,D,N} 
+#    @assert length(xs) >= 1 
+#    return FlowChain{T, number_dimensions(xs[1]), number_conditions(xs[1])}(xs)
+#end
 
 FlowChain(xs::FlowElement...) = FlowChain(xs)
 FlowChain(::Type{T}, n::Int, args...; kws...) where {T<:FlowElement} = FlowChain([T(args...; kws...) for _ ∈ 1:n]...)
@@ -147,10 +152,10 @@ end
 
 
 function backward(
-    chain::FlowChain, 
-    x::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    chain::FlowChain{T}, 
+    x::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
 
     n = length(chain)
@@ -167,10 +172,10 @@ end
 
 
 function forward(
-    chain::FlowChain, 
-    z::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    ) where {T,N}
+    chain::FlowChain{T}, 
+    z::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    ) where {T,K}
 
     n = length(chain)
     z_i, ln_det_jac = forward(chain[1], z, θ)
@@ -186,10 +191,10 @@ end
 
 
 function forward!(
-    chain::FlowChain, 
-    z::AbstractArray{T,N},
-    θ::AbstractArray{T,N}
-    )  where {T,N}
+    chain::FlowChain{T}, 
+    z::AbstractArray{T,K},
+    θ::AbstractArray{T,K}
+    )  where {T,K}
 
     @inbounds for i ∈ eachindex(chain.layers)
         forward!(chain[i], z, θ)

@@ -25,36 +25,30 @@ The sum of the training and validation fractions must be below or equal to 1. Th
 
 The elementary elements of the flow are the [`CouplingLayers`](./api_coupling.md). A coupling layer is more particularly a bijective transformation which acts on some dimensions while leaving the others unchanged. In order to perform a transformation of all dimensions a chain of coupling layers is necessary. All definitions of coupling layer below are equivalent and transform dimensions 4, 5, 6, and 7.
 ```@example guide; continued=true
-CouplingLayer(data)
-CouplingLayer(data, 3)
-CouplingLayer(data, [4, 5, 6, 7])
-CouplingLayer(7, [4, 5, 6, 7], n=2)
-CouplingLayer(7, 3, n=2)
+RNVPCouplingLayer(7, [4, 5, 6, 7], n=2)
+RNVPCouplingLayer(7, 3, n=2)
 ```
 and gives
 ```@example guide
-@summary CouplingLayer(7, 3, n=2)
+@summary RNVPCouplingLayer(7, 3, n=2)
 ```
 One can also use the `reverse` option to rather transform the dimensions 1, 2, and 3
 ```@example guide; continued=true
-CouplingLayer(data, reverse=true)
-CouplingLayer(data, 3, reverse=true)
-CouplingLayer(data, [1, 2, 3])
-CouplingLayer(7, [1, 2, 3], n=2)
-CouplingLayer(7, 3, n=2, reverse=true)
+RNVPCouplingLayer(7, [1, 2, 3], n=2)
+RNVPCouplingLayer(7, 3, n=2, reverse=true)
 ```
 in which case
 ```@example guide
-@summary CouplingLayer(7, 3, n=2, reverse=true)
+@summary RNVPCouplingLayer(7, 3, n=2, reverse=true)
 ```
 
 Layers can then be stacked in a [`FlowChain`](@ref) to create a flow. An example would be
 ```@example guide
 chain = FlowChain(
-    CouplingLayer(data, [4, 5, 6, 7]), 
-    CouplingLayer(data, [2, 3, 4, 5]), 
-    CouplingLayer(data, [7, 1, 2, 3]), 
-    GlobalNormalizationLayer(x, -1f0, 1f0)
+    CouplingLayer(7, [4, 5, 6, 7], n=2), 
+    CouplingLayer(7, [2, 3, 4, 5], n=2), 
+    CouplingLayer(7, [7, 1, 2, 3], n=2), 
+    GlobalNormalizationLayer(x, -1f0, 1f0, n=2)
     )
 @summary chain
 ```
@@ -66,43 +60,18 @@ where good practice is to place a [`GlobalNormalizationLayer`](@ref) at the end 
 !!! tip "One dimensional distribution"
     RNVP-layers are _diagonal_ in that they only _transform_ one part of the dimensions while taking the other part in input. Emulating a 1 dimensional distribution is thus not straightforward. Emulating a one dimensional distribution with RNVP-layers is nonetheless possible by artificially promoting the distribution to two dimensions, associating any point to a value drawn from a known distribution like a Gaussian distribution.
 
-## Blocks: combination of layers
-
-A `CouplingBlock` is a combination of two layers, with complentary transformations on axes. That is, if the first layer transforms dimensions 1, 3, 4, 7 the second transforms dimensions 2, 5, and 6 by construction. Said differently, the following chains are equivalent
-
-```@example guide
-chain = FlowChain(
-    CouplingLayer(data, [4, 5, 6, 7]), 
-    CouplingLayer(data, [1, 2, 3]), 
-    )
-@summary chain
-```
-
-```@example guide
-chain = FlowChain(
-    CouplingBlock(data, [4, 5, 6, 7]), 
-    )
-@summary chain
-```
 
 ## More about the layers
 
-By default coupling layers are set as Real-NVP which requires two neural networks called `s` for scaling and `t` for translation. Both of these networks are instances of `Flux.Dense` but their properties can also be modified from the [`CouplingLayer`](@ref) constructor. First, the following two declarations are equivalent.
+Properties of the `s` and `t` network can be changed as follows.
 ```@example guide
-@summary CouplingLayer(data)
-```
-```@example guide
-@summary CouplingLayer(RNVPCouplingLayer, data)
-```
-Second, properties of the `s` and `t` network can be changed as follows.
-```@example guide
-@summary CouplingLayer(data, n_sublayers_s=3, n_sublayers_t=4, hidden_dim_s=16, hidden_dim_t=12, σ_s=Flux.relu, σ_t=Flux.sigmoid)
+@summary RNVPCouplingLayer(data, n_sublayers_s=3, n_sublayers_t=4, hidden_dim_s=16, hidden_dim_t=12, σ_s=Flux.relu, σ_t=Flux.sigmoid)
 ```
 Finally then can also be set direclty but one then needs to be carefull with the input and output dimensions. The input dimension should be `number of untransformed dimensions` + ``n`` and the output dimension should be `number of transformed dimensions`.
 ```@example guide
-s_net = Flux.Chain([Flux.Dense(5, 32, Flux.sigmoid), Flux.Dense(32, 16, Flux.relu), Flux.Dense(16, 4)])
-t_net = Flux.Chain([Flux.Dense(5, 12, Flux.relu), Flux.Dense(12, 16, Flux.logcosh), Flux.Dense(16, 32, Flux.relu), Flux.Dense(32, 4)])
-@summary CouplingLayer(s_net, t_net, data)
+s_net = FluxChain([Flux.Dense(5, 32, Flux.sigmoid), Flux.Dense(32, 16, Flux.relu), Flux.Dense(16, 4)])
+t_net = FluxChain([Flux.Dense(5, 12, Flux.relu), Flux.Dense(12, 16, Flux.logcosh), Flux.Dense(16, 32, Flux.relu), Flux.Dense(32, 4)])
+@summary RNVPCouplingLayer(s_net, t_net, data)
 ```
 
 ## Train the model
@@ -172,7 +141,12 @@ res = pdf(flow, ([2], [3, 2], [1, 4], θ)
 The code has been built such that it is easy to implement new layers. It must take the form of a struct on which is applied the `Flux.@layer` macro specifying the trainable parameters. Then it must define a `forward` and `backward` functions that are differentiable by `Zygote` (or use a custom chain rule). These two functions must have signature `(::NewLayer, ::AbstractArray{T,N}, ::AbstractArray{T,N}) where {T,N}` and return the transformed array as well as the logarithm of the determinant of the jacobian of the transformation.
 
 ```@example guide
-struct NewLayer{U, V} <: FlowElement
+# T is the data type 'Float32'
+# D is the number of dimensions
+# N is the number of conditions entering the element
+# (N can be different from P the number of parameter in a Flow
+# if the we reduce the parameter dimension with a Filter for instance)
+struct NewLayer{T,D,N,U, V} <: FlowElement{T,D,N}
     a::U
     b::V
 end

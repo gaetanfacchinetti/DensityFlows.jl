@@ -32,7 +32,7 @@ export training_loss, validation_loss
 ##########
 #Flow
 
-struct Flow{T, D, N, L, B<:Distribution{T,D}, M<:FlowElement, C<:Conditioner{T, N, L}, V<:AbstractVector{T}}
+struct Flow{T, D, P, N, B<:Distribution{T,D}, M<:FlowElement{T,D,N}, C<:Conditioner{T,P,N}, V<:AbstractVector{T}}
     
     base::B
     model::M
@@ -44,17 +44,17 @@ struct Flow{T, D, N, L, B<:Distribution{T,D}, M<:FlowElement, C<:Conditioner{T, 
 
     function Flow(
         base::Distribution{T,D}, 
-        model::FlowElement, 
-        conditioner::Conditioner{T,N,L}, 
+        model::FlowElement{T,D,N}, 
+        conditioner::Conditioner{T,P,N}, 
         train_loss::V, 
         valid_loss::V
-        ) where {T,D,N,L,V<:AbstractVector{T}}
+        ) where {T,D,P,N,V<:AbstractVector{T}}
 
         # put the model in test mode by default
         Flux.testmode!(model)
         Flux.testmode!(conditioner)
 
-        return new{T, D, N, L, typeof(base), typeof(model), typeof(conditioner), V}(base, model, conditioner, promote(train_loss, valid_loss)...)
+        return new{T, D, P, N, typeof(base), typeof(model), typeof(conditioner), V}(base, model, conditioner, promote(train_loss, valid_loss)...)
 
     end 
 
@@ -108,7 +108,7 @@ Flow
 
 function Flow(
     base::Distribution{T}, 
-    model::FlowElement, 
+    model::FlowElement{T}, 
     data::DataArrays{T}, 
     train_loss::AbstractVector{T}, 
     valid_loss::AbstractVector{T}
