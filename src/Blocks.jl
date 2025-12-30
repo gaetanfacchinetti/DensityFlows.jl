@@ -105,19 +105,19 @@ CouplingBlock(axes::CouplingAxes; kws...) = CouplingBlock(RNVPCouplingLayer, axe
 
 
 CouplingBlock(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = CouplingBlock(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
-CouplingBlock(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingBlock(T, CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+CouplingBlock(::Type{T}, d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) where {T<:FlowElement} = CouplingBlock(T, CouplingAxes(d, j, n=n, reverse=reverse); kws...)
 
 CouplingBlock(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = CouplingBlock(CouplingAxes(d, mask, n=n); kws...)
-CouplingBlock(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:CouplingLayer} = CouplingBlock(T, CouplingAxes(d, mask, n=n); kws...)
+CouplingBlock(::Type{T}, d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) where {T<:FlowElement} = CouplingBlock(T, CouplingAxes(d, mask, n=n); kws...)
 
 CouplingBlock(data::DataArrays, j::Int; reverse::Bool = false, kws...) = CouplingBlock(CouplingAxes(data, j, reverse=reverse); kws...)
-CouplingBlock(::Type{T}, data::DataArrays, j::Int; kws...) where {T<:CouplingLayer} = CouplingBlock(T, CouplingAxes(data, j, reverse=reverse); kws...)
+CouplingBlock(::Type{T}, data::DataArrays, j::Int; kws...) where {T<:FlowElement} = CouplingBlock(T, CouplingAxes(data, j, reverse=reverse); kws...)
 
 CouplingBlock(data::DataArrays; reverse::Bool = false, kws...) = CouplingBlock(CouplingAxes(data, reverse=reverse); kws...)
-CouplingBlock(::Type{T}, data::DataArrays; reverse::Bool = false, kws...) where {T<:CouplingLayer} = CouplingBlock(T, CouplingAxes(data, reverse=reverse); kws...)
+CouplingBlock(::Type{T}, data::DataArrays; reverse::Bool = false, kws...) where {T<:FlowElement} = CouplingBlock(T, CouplingAxes(data, reverse=reverse); kws...)
 
 CouplingBlock(data::DataArrays, mask::AbstractVector{Int}; kws...) = CouplingBlock(CouplingAxes(data, mask); kws...)
-CouplingBlock(::Type{T}, data::DataArrays, mask::AbstractVector{Int}; kws...) where {T<:CouplingLayer}  = CouplingBlock(T, CouplingAxes(data, mask); kws...)
+CouplingBlock(::Type{T}, data::DataArrays, mask::AbstractVector{Int}; kws...) where {T<:FlowElement}  = CouplingBlock(T, CouplingAxes(data, mask); kws...)
 
 
 

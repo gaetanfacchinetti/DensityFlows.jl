@@ -32,7 +32,8 @@ export training_loss, validation_loss
 ##########
 #Flow
 
-struct Flow{T, D, P, N, B<:Distribution{T,D}, M<:FlowElement{T,D,N}, C<:Conditioner{T,P,N}, V<:AbstractVector{T}}
+
+struct Flow{T, D, P, N, B<:Distribution{T,D}, M<:FlowElement{T,D}, C<:Conditioner{T,P,N}, V<:AbstractVector{T}}
     
     base::B
     model::M
@@ -44,11 +45,17 @@ struct Flow{T, D, P, N, B<:Distribution{T,D}, M<:FlowElement{T,D,N}, C<:Conditio
 
     function Flow(
         base::Distribution{T,D}, 
-        model::FlowElement{T,D,N}, 
+        model::FlowElement{T,D}, 
         conditioner::Conditioner{T,P,N}, 
         train_loss::V, 
         valid_loss::V
         ) where {T,D,P,N,V<:AbstractVector{T}}
+
+        n_cond = number_conditions(model)
+       
+        if n_cond > 0
+            @assert n_cond  == N "The number of conditions in the model must match that in the conditioner."
+        end
 
         # put the model in test mode by default
         Flux.testmode!(model)

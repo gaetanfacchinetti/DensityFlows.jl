@@ -25,7 +25,7 @@
 
 export BatchNormalizationLayer
 
-mutable struct BatchNormalizationLayer{T,D,N,V<:AbstractVector{T}} <: NormalizationElement{T,D,N}
+mutable struct BatchNormalizationLayer{T,D,V<:AbstractVector{T}} <: FlowElement{T,D}
    
     const β::V
     const γ::V
@@ -37,8 +37,6 @@ mutable struct BatchNormalizationLayer{T,D,N,V<:AbstractVector{T}} <: Normalizat
     v::V
 
     init::Bool
-
-    n::Integer
 end
 
 Flux.@layer BatchNormalizationLayer trainable=(β, γ)
@@ -51,23 +49,22 @@ function BatchNormalizationLayer(
     m::V, 
     v::V, 
     init::Bool, 
-    n::Integer
     ) where {T, V<:AbstractVector{T}}
 
-    return BatchNormalizationLayer{T, length(β), n, V}(β, γ, λ, ϵ, m, v, init, n)
+    return BatchNormalizationLayer{T, length(β), V}(β, γ, λ, ϵ, m, v, init)
 
 end
 
-function BatchNormalizationLayer(::Type{T}, d::Integer, n::Integer, λ::T, ϵ::T, init::Bool = false) where {T}
-    β = zeros(T, d)
-    γ = zeros(T, d)
-    m = zeros(T, d)
-    v = zeros(T, d)
-    BatchNormalizationLayer{T, d, n, Vector{T}}(β, γ, λ, ϵ, m, v, init, n)
+function BatchNormalizationLayer{T,D}(;λ::T = T(0.1), ϵ::T = T(1e-5), init::Bool = false) where {T,D}
+    β = zeros(T, D)
+    γ = zeros(T, D)
+    m = zeros(T, D)
+    v = zeros(T, D)
+    BatchNormalizationLayer(β, γ, λ, ϵ, m, v, init)
 end
 
-BatchNormalizationLayer(d::Integer; n::Integer, λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, d, n, λ, ϵ, false)
-BatchNormalizationLayer(data::DataArrays{Float32}; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, number_dimensions(data), number_conditions(data), λ, ϵ, false)
+BatchNormalizationLayer{D}(;λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) where {D} = BatchNormalizationLayer{Float32, D}(λ = λ, ϵ = ϵ, init=false)
+#BatchNormalizationLayer(data::DataArrays{Float32}; λ::Float32 = 0.1f0, ϵ::Float32 = 1f-5) = BatchNormalizationLayer(Float32, number_dimensions(data), number_conditions(data), λ, ϵ, false)
 
 
 function backward(
@@ -125,4 +122,9 @@ function forward!(
     z .= (z .- layer.β) .* exp.(-γ) .* sqrt.(layer.v .+ layer.ϵ) .+ layer.m
     return nothing 
 
+end
+
+
+function summarize(obj::BatchNormalizationLayer)
+    println("BatchNormalizationLayer | ($(sum(length, Flux.trainables(obj))) parameters) ")
 end

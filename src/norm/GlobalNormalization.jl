@@ -23,16 +23,14 @@
 #
 ##################################################################################
 
-export NormalizationElement, GlobalNormalizationLayer
+export GlobalNormalizationLayer
 
-abstract type NormalizationElement{T,D,N} <: FlowElement{T,D,N} end
 
-struct GlobalNormalizationLayer{T, D, N, V<:AbstractVector{T}} <: NormalizationElement{T,D,N}
+struct GlobalNormalizationLayer{T, D, V<:AbstractVector{T}} <: FlowElement{T,D}
     x_min::V
     x_max::V
     α::T
     β::T
-    n::Integer
 end
 
 @doc raw""" 
@@ -52,22 +50,21 @@ function GlobalNormalizationLayer(
     x_max::V,
     α::T,
     β::T,
-    n::Integer
     ) where {T, V<:AbstractVector{T}}
 
-    return GlobalNormalizationLayer{T, length(x_min), n, V}(x_min, x_max, α, β, n)
+    return GlobalNormalizationLayer{T, length(x_min), V}(x_min, x_max, α, β)
 end
 
-function GlobalNormalizationLayer(x::AbstractArray{T, K}, α::T, β::T; n::Integer) where {T, K}
+function GlobalNormalizationLayer(x::AbstractArray{T, K}, α::T, β::T) where {T, K}
     
     x_min = vec(minimum(x, dims=2:K))
     x_max = vec(maximum(x, dims=2:K))
 
     @assert β > α "Bounds of the normalisation need to be in the correct order, β > α."
-    return GlobalNormalizationLayer(x_min, x_max, α, β, n)
+    return GlobalNormalizationLayer(x_min, x_max, α, β)
 end
 
-GlobalNormalizationLayer(data::DataArrays{T, N}, α::T = T(0), β::T = T(1)) where {T, N} = GlobalNormalizationLayer(data.x, α, β, n = size(data.θ, 1))
+GlobalNormalizationLayer(data::DataArrays{T, K}, α::T = T(0), β::T = T(1)) where {T, K} = GlobalNormalizationLayer(data.x, α, β)
 
 Flux.@layer GlobalNormalizationLayer trainable=()
 @auto_functor GlobalNormalizationLayer
@@ -115,5 +112,5 @@ end
 
 
 function summarize(obj::GlobalNormalizationLayer)
-    println("GlobalNormalization Layer")
+    println("GlobalNormalizationLayer | data normalized between $(obj.α) and $(obj.β)")
 end

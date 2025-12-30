@@ -28,7 +28,7 @@ export NICECouplingLayer, NICE_backward
 ############
 # NICE layer structure
 
-struct NICECouplingLayer{T, D, N, CT<:FluxChain} <: CouplingLayer{T,D,N}
+struct NICECouplingLayer{T, D, N, CT<:FluxChain} <: ConditionalFlowElement{T,D,N}
     
     t_net::CT
     axes::CouplingAxes
@@ -109,8 +109,27 @@ function NICECouplingLayer(
 end
 
 
-NICECouplingLayer(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = NICECouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
-NICECouplingLayer(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = NICECouplingLayer(CouplingAxes(d, mask, n=n); kws...)
+
+function NICECouplingLayer{D, N}(j::Int = D ÷ 2; reverse::Bool = false, kws...) where {D, N} 
+    return NICECouplingLayer(CouplingAxes(D, j, n=N, reverse=reverse); kws...)
+end
+
+function NICECouplingLayer{T, D, N}(j::Int = D ÷ 2; reverse::Bool = false, kws...) where {T, D, N} 
+    @assert T === Float32 "By default NICECoupling layers are defined for Float32"
+    return NICECouplingLayer(CouplingAxes(D, j, n=N, reverse=reverse); kws...)
+end
+
+function NICECouplingLayer{D, N}(mask::AbstractVector{<:Integer}; kws...) where {D, N} 
+    return NICECouplingLayer(CouplingAxes(D, mask, n=N); kws...)
+end
+
+function NICECouplingLayer{T, D, N}(mask::AbstractVector{<:Integer}; kws...) where {T, D, N} 
+    @assert T === Float32 "By default NICECoupling layers are defined for Float32"
+    return NICECouplingLayer(CouplingAxes(D, mask, n=N); kws...)
+end
+
+#NICECouplingLayer(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = NICECouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
+#NICECouplingLayer(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = NICECouplingLayer(CouplingAxes(d, mask, n=n); kws...)
 
 
 

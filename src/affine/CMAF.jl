@@ -73,7 +73,7 @@ function assign_degrees(width, d)
     #return shuffle!(repeat(collect(1:d), ceil(Int, width/d))[1:width])
 end
 
-struct CMAFCouplingLayer{T, D, N, S<:Union{Tuple{Vararg{<:MaskedDense{T}}}, AbstractVector{<:MaskedDense{T}}}, V<:AbstractVector{<:Integer}} <: CouplingLayer{T,D,N}
+struct CMAFCouplingLayer{T, D, N, S<:Union{Tuple{Vararg{<:MaskedDense{T}}}, AbstractVector{<:MaskedDense{T}}}, V<:AbstractVector{<:Integer}} <: ConditionalFlowElement{T,D,N}
         
     sub_layers::S
     
@@ -98,14 +98,12 @@ end
 
 Flux.@layer CMAFCouplingLayer trainable=(sub_layers)
 
-function CMAFCouplingLayer(
-    ::Type{T}, 
-    d::Integer; 
-    n::Integer,
-    dim2deg::AbstractVector{<:Integer} = Random.randperm(d),
+function CMAFCouplingLayer{T, D, N}(
+    ; 
+    dim2deg::AbstractVector{<:Integer} = Random.randperm(D),
     hidden::AbstractVector{<:Integer} = [64,64],
     σ::Function = Flux.relu
-    ) where {T}
+    ) where {T,D,N}
     
 
     # --------------  autoregressive degrees --------------
@@ -113,7 +111,7 @@ function CMAFCouplingLayer(
 
     deg2dim = similar(dim2deg)
 
-    for i in 1:d
+    for i in 1:D
         res = findall(i .== dim2deg)
         @assert length(res) == 1 "res = $res"
         deg2dim[i] = res[1]
@@ -124,7 +122,7 @@ function CMAFCouplingLayer(
     # degrees for input and output
     degrees[1] = dim2deg
     degrees[end] = vcat(dim2deg .- 1, dim2deg .- 1)
-    degrees[2:end-1] .= [assign_degrees(h, d) for h in hidden]
+    degrees[2:end-1] .= [assign_degrees(h, D) for h in hidden]
 
     # function to construct binary mask from degrees
     make_mask(a, b) = T.(a' .<= b)
@@ -134,7 +132,7 @@ function CMAFCouplingLayer(
 
     # the first mask should not mask the parameters
     masks[1] = make_mask(degrees[1], degrees[2])
-    masks[1] = hcat(ones(hidden[1], n), masks[1])
+    masks[1] = hcat(ones(hidden[1], N), masks[1])
 
     # set the rest of the mask
     masks[2:end] .= [make_mask(degrees[i], degrees[i+1]) for i in 2:(m+1)]
@@ -144,16 +142,27 @@ function CMAFCouplingLayer(
     sub_layers = Vector{MaskedDense{T}}(undef, m+1)
 
     # First masked layer
-    sub_layers[1] = MaskedDense(d+n, hidden[1], masks[1], σ = σ)
+    sub_layers[1] = MaskedDense(D+N, hidden[1], masks[1], σ = σ)
     sub_layers[2:end-1] .= [MaskedDense(hidden[i-1], hidden[i], masks[i], σ = σ) for i in 2:m]
-    sub_layers[end] = MaskedDense(hidden[end], 2*d, masks[end], σ = identity)
+    sub_layers[end] = MaskedDense(hidden[end], 2*D, masks[end], σ = identity)
 
     return CMAFCouplingLayer(sub_layers, dim2deg, deg2dim)
 
 end
 
 
-CMAFCouplingLayer(d::Integer; kws...) = CMAFCouplingLayer(Float32, d; kws...)
+CMAFCouplingLayer{D,N}(args...;kws...) where {D, N} = CMAFCouplingLayer{Float32, D, N}(args...; kws...)
+
+
+function summarize(obj::CMAFCouplingLayer)
+
+    dim_net = [size(obj.sub_layers[1].w, 2), [size(l.w, 1) for l in obj.sub_layers]...]
+
+    println("CMAFCouplingLayer | MADE > $dim_net ($(sum(length, Flux.trainables(obj.sub_layers))) parameters)")
+    print("                  | permutations of input/output degrees > $(obj.dim2deg) ")
+    println("")
+end
+
 
 function (f::CMAFCouplingLayer{T,D})(
     x::AbstractArray{T}, 

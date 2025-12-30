@@ -75,12 +75,47 @@ function forward! end
 ######################## 
 
 
-struct FlowChain{T, D, N, C<:Union{Tuple{Vararg{<:FlowElement{T,D,N}}}, AbstractVector{<:FlowElement{T,D,N}}}} <: FlowElement{T, D, N}
+
+struct FlowChain{T, D, C<:Union{Tuple{Vararg{<:FlowElement{T,D}}}, AbstractVector{<:FlowElement{T,D}}}} <: FlowElement{T,D}
+    
     layers::C
+
+    function FlowChain(
+        xs::Union{Tuple{Vararg{<:FlowElement{T,D}}}, AbstractVector{<:FlowElement{T,D}}}
+        ) where {T,D} 
+    
+        @assert length(xs) >= 1 
+
+        conditions = [number_conditions(x) for x in xs]
+
+        # check that the number of conditions in the same for all FlowElements
+        # passed in input to the chain, avoid compatibility issues
+
+        n = -1
+        init = false
+        
+        for condition in conditions
+            
+            if !init && condition > 0
+                n = condition
+                init = true
+            end
+
+            if condition > 0
+                @assert condition == n "Number of conditions must be the same for all elements in the chain"
+            end
+
+        end 
+
+        return new{T, number_dimensions(xs[1]), typeof(xs)}(xs)
+    end
+
 end
+
 
 Flux.@layer FlowChain 
 @auto_functor FlowChain
+
 
 @doc raw"""
 
@@ -96,10 +131,15 @@ and `kws...` passed to the constructor of `T`.
 """
 function FlowChain end
 
-#function FlowChain(xs::Union{Tuple{Vararg{<:FlowElement{T,D,N}}}, AbstractVector{<:FlowElement{T,D,N}}}) where {T,D,N} 
-#    @assert length(xs) >= 1 
-#    return FlowChain{T, number_dimensions(xs[1]), number_conditions(xs[1])}(xs)
-#end
+
+
+
+# get the number of condition of a chain
+function number_conditions(element::FlowChain)
+    conditions = [number_conditions(x) for x in element.layers]
+    return maximum(conditions)
+end
+
 
 FlowChain(xs::FlowElement...) = FlowChain(xs)
 FlowChain(::Type{T}, n::Int, args...; kws...) where {T<:FlowElement} = FlowChain([T(args...; kws...) for _ ∈ 1:n]...)
@@ -169,6 +209,7 @@ function backward(
     return x_i, ln_det_jac
 
 end
+
 
 
 function forward(

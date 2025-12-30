@@ -62,7 +62,7 @@ is_atomic(::Type{T}) where {T<:Any} = false
 @save_as_atomic GlobalNormalizationLayer
 @save_as_atomic BatchNormalizationLayer
 @save_as_atomic NormalizationConditioner #TO DO: CHANGE THIS FOR BETTER FLEXIBILITY
-#@save_as_atomic Conditioner 
+@save_as_atomic FluxChain #TO DO: CHANGE THIS FOR BETTER FLEXIBILITY
 
 # generic function save
 function _save_element(filename::AbstractString, value)
@@ -304,8 +304,13 @@ function load_element(directory::AbstractString)
     end
 
     # reconstruct the object of type m_type passing elements as input
-    return m_type(elements...)
-
+    try
+        return m_type(elements...)
+    catch e
+        println("Impossible to create object with elements:")
+        println(elements)
+        rethrow(e)
+    end
 end
 
 

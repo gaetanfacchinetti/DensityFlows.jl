@@ -38,13 +38,15 @@ import Base: reverse, ==, +
 import ChainRulesCore: rrule
 import Flux: Dense
 
-export FlowElement, CouplingLayer, summarize
+export FlowElement, summarize
+
+abstract type FlowElement{T,D} end
 
 @doc raw""" Building blocks of the flow """ 
-abstract type FlowElement{T,D,N} end
+abstract type ConditionalFlowElement{T,D,N} <: FlowElement{T,D} end
 
 # make the difference between containers of multiple simple flows
-abstract type CouplingLayer{T,D,N} <: FlowElement{T,D,N} end
+#abstract type CouplingLayer{T,D,N} <: FlowElement{T,D,N} end
 
 # default behaviour for summarize
 @doc raw"""
@@ -56,8 +58,9 @@ Print a summary for the [`FlowElement`](@ref) `element`.
 summarize(element::FlowElement) = println(element)
 
 
-number_dimensions(element::FlowElement{T,D,N}) where {T,D,N} = D
-number_conditions(element::FlowElement{T,D,N}) where {T,D,N} = N
+number_dimensions(element::FlowElement{T,D}) where {T,D} = D
+number_conditions(element::FlowElement{T,D}) where {T,D} = -1
+number_conditions(element::ConditionalFlowElement{T,D,N}) where {T,D,N} = N
 
 include("./FluxWrapper.jl")
 include("./Macros.jl")

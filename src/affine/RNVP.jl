@@ -33,7 +33,7 @@ const GRAD_CLAMPING = Ref{Float32}(-1f0)
 # Real-NVP layer structure
 
 
-struct RNVPCouplingLayer{T, D, N, CS<:FluxChain{T}, CT<:FluxChain{T}} <: CouplingLayer{T,D,N}
+struct RNVPCouplingLayer{T, D, N, CS<:FluxChain{T}, CT<:FluxChain{T}} <: ConditionalFlowElement{T,D,N}
     
     s_net::CS
     t_net::CT
@@ -98,6 +98,8 @@ function RNVPCouplingLayer(s_net::FluxChain{T}, t_net::FluxChain{T}, axes::Coupl
     return RNVPCouplingLayer{T, axes.d, axes.n, typeof(s_net), typeof(t_net)}(s_net, t_net, axes)
 end
 
+
+
 function _dflt_net(
     input_dim::Int,
     output_dim::Int,
@@ -116,6 +118,7 @@ function _dflt_net(
     return FluxChain(vcat(sublayers...)...)
 
 end
+
 
 function RNVPCouplingLayer(
     axes::CouplingAxes;
@@ -139,8 +142,26 @@ function RNVPCouplingLayer(
 end
 
 
-RNVPCouplingLayer(d::Int, j::Int = d ÷ 2; n::Int = 0, reverse::Bool = false, kws...) = RNVPCouplingLayer(CouplingAxes(d, j, n=n, reverse=reverse); kws...)
-RNVPCouplingLayer(d::Int, mask::AbstractVector{Int}; n::Int = 0, kws...) = RNVPCouplingLayer(CouplingAxes(d, mask, n=n); kws...)
+
+function RNVPCouplingLayer{D, N}(j::Int = D ÷ 2; reverse::Bool = false, kws...) where {D, N} 
+    return RNVPCouplingLayer(CouplingAxes(D, j, n=N, reverse=reverse); kws...)
+end
+
+function RNVPCouplingLayer{T, D, N}(j::Int = D ÷ 2; reverse::Bool = false, kws...) where {T, D, N} 
+    @assert T === Float32 "By default RNVPCoupling layers are defined for Float32"
+    return RNVPCouplingLayer(CouplingAxes(D, j, n=N, reverse=reverse); kws...)
+end
+
+function RNVPCouplingLayer{D, N}(mask::AbstractVector{<:Integer}; kws...) where {D, N} 
+    return RNVPCouplingLayer(CouplingAxes(D, mask, n=N); kws...)
+end
+
+function RNVPCouplingLayer{T, D, N}(mask::AbstractVector{<:Integer}; kws...) where {T, D, N} 
+    @assert T === Float32 "By default RNVPCoupling layers are defined for Float32"
+    return RNVPCouplingLayer(CouplingAxes(D, mask, n=N); kws...)
+end
+
+
 
 # make the coupling layer parameters trainable
 Flux.@layer RNVPCouplingLayer trainable=(s_net, t_net)
