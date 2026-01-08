@@ -96,23 +96,6 @@ A spceific `base` distribution can be given, default is multivariate gaussian.
 Flow
 
 
-# function Flow(
-#     base::Distribution{T,D}, 
-#     model::FlowElement, 
-#     conditioner::Conditioner{T,N,L}, 
-#     train_loss::AbstractVector{T}, 
-#     valid_loss::AbstractVector{T}
-#     ) where {T,D,N,L}
-
-#     # put the model in test mode by default
-#     Flux.testmode!(model)
-#     Flux.testmode!(conditioner)
-
-#     return Flow{T, D, N, L, typeof(base), typeof(model), V}(base, model, conditioner, promote(train_loss, valid_loss)...)
-
-# end
-
-
 function Flow(
     base::Distribution{T}, 
     model::FlowElement{T}, 

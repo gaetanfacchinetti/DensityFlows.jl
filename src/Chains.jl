@@ -133,7 +133,6 @@ function FlowChain end
 
 
 
-
 # get the number of condition of a chain
 function number_conditions(element::FlowChain)
     conditions = [number_conditions(x) for x in element.layers]

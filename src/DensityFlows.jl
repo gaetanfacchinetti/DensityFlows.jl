@@ -33,6 +33,7 @@ import LinearAlgebra
 import JLD2
 import ChainRulesCore
 import Statistics
+import SpecialFunctions
 
 import Base: reverse, ==, +
 import ChainRulesCore: rrule
@@ -78,6 +79,7 @@ include("./Chains.jl")
 include("./Flows.jl")
 include("./Noise.jl")
 include("./Training.jl")
+include("./Testing.jl")
 include("./Loading.jl")
 
 @flow_wrapper backward forward forward!

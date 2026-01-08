@@ -61,12 +61,16 @@ is_atomic(::Type{T}) where {T<:Any} = false
 @save_as_atomic CouplingAxes
 @save_as_atomic GlobalNormalizationLayer
 @save_as_atomic BatchNormalizationLayer
-@save_as_atomic NormalizationConditioner #TO DO: CHANGE THIS FOR BETTER FLEXIBILITY
+@save_as_atomic NormalizationConditioner  #TO DO: CHANGE THIS FOR BETTER FLEXIBILITY
 @save_as_atomic FluxChain #TO DO: CHANGE THIS FOR BETTER FLEXIBILITY
 
 # generic function save
 function _save_element(filename::AbstractString, value)
     is_atomic(value) ? save_element_atomic(filename, value) : save_element(filename, value)
+end
+
+function _save_conditioner(filename::AbstractString, value)
+    is_atomic(value) ? save_element_atomic(filename, value) : save_conditioner(filename, value)
 end
 
 ###########################################################
@@ -188,6 +192,7 @@ end
 lookup_type(x::AbstractString) = lookup_type(Symbol(x))
 
 
+
 @doc raw""" 
 
     load_element(directory)
@@ -195,6 +200,7 @@ lookup_type(x::AbstractString) = lookup_type(Symbol(x))
 Load any [`FlowElement`](@ref) saved in `directory`.
 """
 function load_element(directory::AbstractString)
+
 
     # read the all the files in the directory
     files = readdir(directory)
@@ -209,7 +215,7 @@ function load_element(directory::AbstractString)
 
     # if the type is atomic then we do not need to go further
     # we directly call the specific loading function
-    if (m_type <: FlowElement) && is_atomic(m_type)
+    if (m_type <: Union{Conditioner, FlowElement}) && is_atomic(m_type)
         return load_element(directory * "/" * str_file_1, m_type)
     end
 
@@ -276,7 +282,8 @@ function load_element(directory::AbstractString)
 
     # now go over the different fields
     for (field, data) in fields
-        
+
+    
         # get back all properties stored for a given field
         order_field, composite, order_array, filenames = data
         n_array = length(order_array)
@@ -303,9 +310,13 @@ function load_element(directory::AbstractString)
 
     end
 
+  
     # reconstruct the object of type m_type passing elements as input
     try
-        return m_type(elements...)
+
+        passed_elements = length(elements) > 1 ? elements : elements[1]
+        return m_type(passed_elements...)
+
     catch e
         println("Impossible to create object with elements:")
         println(elements)
@@ -313,6 +324,32 @@ function load_element(directory::AbstractString)
     end
 end
 
+###########################################################
+## Save / load conditioner
+
+
+function save_conditioner(directory::AbstractString, element::T; erase::Bool = false) where {T<:Conditioner}
+
+    make_dir(directory, erase = erase)
+    filename = directory * "/" * get_type(T)
+
+    # if the element itself is atomic simply save it
+    if is_atomic(element) 
+        save_element_atomic(filename, element)
+        return nothing
+    end
+
+    # if not atomic we go over all fields
+    for field in fieldnames(T)
+
+        value = getfield(element, field)
+        _save_conditioner(filename * "_" * string(field), value)
+
+    end
+
+    return nothing
+    
+end
 
 
 
@@ -331,10 +368,10 @@ See [`@clear_and_save_flow`](@ref) and [`@save_flow`](@ref)
 function save_flow(directory::AbstractString, flow::Flow; erase::Bool = false)
 
     make_dir(directory, erase = erase)
- 
-    for field in [:model, :conditioner]
-        _save_element(directory * "/" * string(field), getfield(flow, field))
-    end
+    
+    # save the model and the conditioner
+    save_element(directory * "/model", getfield(flow, :model))
+    save_conditioner(directory * "/conditioner", getfield(flow, :conditioner))
 
     try
         JLD2.jldsave(directory * "/losses.jld2"; Dict(field => getfield(flow, field)  for field in [:train_loss, :valid_loss])...)
@@ -355,7 +392,7 @@ end
 function load_flow(directory::AbstractString)
     
     model = load_element(directory * "/model")
-    conditioner = load_element(directory * "/conditioner", Conditioner)
+    conditioner = load_element(directory * "/conditioner")
     
     try
         
@@ -366,14 +403,7 @@ function load_flow(directory::AbstractString)
         data = JLD2.jldopen(directory * "/base_dist.jld2")
         base = data["base"]
 
-        T = eltype(metadata.θ_min)
-        D = metadata.d
-        N = metadata.n
-        M = typeof(model)
-        B = typeof(base) 
-        V = typeof(metadata.θ_min)
-
-        return Flow{T, D, N, M, B, V}(model, base, metadata, train_loss, valid_loss)
+        return Flow(base, model, conditioner, train_loss, valid_loss)
     
     catch e
         println("Impossible to load flow at $directory")
