@@ -27,16 +27,12 @@ export Distribution, GaussianDistribution, StandardGaussianDistribution, rand
 
 abstract type Distribution{T,D} end
 
-# Diagonal GausianDistribution
+# DIAGONAL GAUSSIAN DISTRIBUTION
+
 struct GaussianDistribution{T,D,V<:AbstractVector{T}} <: Distribution{T,D}
     μ::V
     σ::V
 end
-
-struct StandardGaussianDistribution{T,D} <: Distribution{T,D} end
-
-StandardGaussianDistribution(::Type{T}, d::Int) where {T} = StandardGaussianDistribution{T,d}()
-StandardGaussianDistribution(d::Int) = StandardGaussianDistribution(Float32, d)
 
 function GaussianDistribution(μ::V, σ::V) where {T, V<:AbstractVector{T}} 
     @assert length(μ) == length(σ)
@@ -53,19 +49,31 @@ function logpdf(dist::GaussianDistribution{T, D}, z::AbstractArray{T}) where {T,
     return -( z2_red .+ D * log.(T(2π))  .+ logσ_red) / 2
 end
 
+function rand(rng::Random.AbstractRNG, dist::GaussianDistribution{T,D}, dims::Tuple{Vararg{Integer}}) where {T,D}
+    return dist.μ .+ dist.σ .* Random.randn(rng, T, (D, dims...))
+end
+
+
+# STANDARD GAUSSIAN DISTRIBUTION
+
+struct StandardGaussianDistribution{T,D} <: Distribution{T,D} end
+
+StandardGaussianDistribution(::Type{T}, d::Int) where {T} = StandardGaussianDistribution{T,d}()
+StandardGaussianDistribution(d::Int) = StandardGaussianDistribution(Float32, d)
+
 function logpdf(dist::StandardGaussianDistribution{T,D}, z::AbstractArray{T}) where {T,D} 
     @assert size(z, 1) == D
     z2_red = dropdims(sum(z.^2, dims=1), dims=1)
     return - (z2_red  .+ D * log(T(2π))) / 2
 end
 
-function rand(rng::Random.AbstractRNG, dist::GaussianDistribution{T,D}, dims::Tuple{Vararg{Integer}}) where {T,D}
-    return dist.μ .+ dist.σ .* Random.randn(rng, T, (D, dims...))
-end
-
 function rand(rng::Random.AbstractRNG, dist::StandardGaussianDistribution{T,D}, dims::Tuple{Vararg{Integer}}) where {T,D}
     return Random.randn(rng, T, (Int(D), dims...))
 end
+
+
+
+# RANDOM DRAWS
 
 rand(rng::Random.AbstractRNG, dist::Distribution, dims::Integer)  = rand(rng, dist, (dims,))
 rand(rng::Random.AbstractRNG, dist::Distribution, dims::Integer...)  = rand(rng, dist, dims)

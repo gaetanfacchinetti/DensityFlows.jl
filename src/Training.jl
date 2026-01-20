@@ -156,7 +156,6 @@ function train!(
     ) where {T}
         
 
-
     # get the training and validation data
     train_data = training_data(data)
     valid_data = validation_data(data)
@@ -202,7 +201,9 @@ function train!(
             Flux.testmode!(flow.conditioner)
             
             # update training and validation loss records
-            update_info!(loss, flow, train_data, valid_data, verbose)
+            # use one instance of the noise as the noisy data
+            # can have better properties than the raw data
+            update_info!(loss, flow, noisy_data(noise, train_data...), noisy_data(noise, valid_data...), verbose)
     
         end
 

@@ -23,7 +23,7 @@
 #
 ##################################################################################
 
-export Conditioner, transform_condition, NormalizationConditioner
+export Conditioner, transform_condition, NormalizationConditioner, ConditionerChain
 
 abstract type Conditioner{T,P,N} end
 
@@ -65,5 +65,63 @@ Flux.@layer NormalizationConditioner trainable=()
 # Simple normalization
 function (f::NormalizationConditioner{T})(θ::AbstractArray{T,K}) where {T,K}
     ((K >= 1) && (size(θ, 1) == 0)) && (return θ)
-    return  (f.β .* (θ .- f.θ_min)  +  f.α .* (f.θ_max .- θ) ) ./ (f.β - f.α)
+    return   (f.β .* (θ .- f.θ_min)  +  f.α .* (f.θ_max .- θ) ) ./ (f.θ_max .- f.θ_min)
+end
+
+number_parameters_input(cond::Conditioner{T, P, N}) where {T, P, N} = P
+number_parameters_output(cond::Conditioner{T, P, N}) where {T, P, N} = N
+
+
+
+# CHAINS OF CONDITIONERS
+# SIMILAR TO FLOWCHAIN
+
+struct ConditionerChain{T, P, N, C<:Union{Tuple{Vararg{<:Conditioner{T}}}, AbstractVector{<:Conditioner{T}}}} <: Conditioner{T,P,N}
+    
+    layers::C
+
+    function ConditionerChain(
+        xs::Union{Tuple{Vararg{<:Conditioner{T}}}, AbstractVector{<:Conditioner{T}}}
+        ) where {T} 
+    
+        @assert length(xs) >= 1 
+
+        # TO DO: ADD A CHECK THAT THE DIMENSIONS ARE COMPATIBLE
+        # FROM ONE LAYER TO THE NEXT
+
+        return new{T, number_parameters_input(xs[1]), number_parameters_output(xs[end]), typeof(xs)}(xs)
+    
+    end
+
+end
+
+ConditionerChain(xs::Conditioner...) = ConditionerChain(xs)
+ConditionerChain(::Type{T}, n::Int, args...; kws...) where {T<:Conditioner} = ConditionerChain([T(args...; kws...) for _ ∈ 1:n]...)
+
+function transform_condition(conds::ConditionerChain{T,P}, θ::AbstractArray{T}) where {T,P}
+    
+    @assert P == size(θ, 1)
+    
+    res = conds[1](θ)
+    
+    for cond in conds[2:end]
+        res = cond(res)
+    end
+
+    return res
+end
+
+for fname ∈ (
+    :(Base.getindex), 
+    :(Base.length), 
+    :(Base.first), 
+    :(Base.last), 
+    :(Base.iterate), 
+    :(Base.lastindex),
+    :(Base.firstindex),
+    :(Base.keys),
+    )
+
+    @eval $fname(chain::ConditionerChain, args...; kws...) = $fname(chain.layers, args...; kws...)
+    
 end

@@ -23,7 +23,7 @@
 #
 ##################################################################################
 
-export NoiseModel, NoiseGenerator, NoNoise, GaussianNoise, ResampledNoise
+export NoiseModel, NoiseGenerator, NoNoise, GaussianNoise, TruncatedGaussianNoise, ResampledNoise
 export noisy_data
 
 abstract type NoiseModel{T} end
@@ -36,24 +36,112 @@ NoNoise() = NoNoise{Float32}()
 
 (f::NoNoise)(x::AbstractArray{T,N}, θ::AbstractArray{T,N}) where {T,N} = (x, θ)
 
-struct GaussianNoise{T} <: NoiseGenerator{T}
-    μx::T
-    σx::T
-    μθ::T
-    σθ::T
+struct GaussianNoise{T, V<:AbstractVector{T}} <: NoiseGenerator{T}
+    μx::V
+    σx::V
+    μθ::V
+    σθ::V
 end
 
 noisy_data(noise::NoiseGenerator{T}, x::AbstractArray{T,N}, θ::AbstractArray{T,N}) where {T,N} = noise(x, θ)
 noisy_data(x::AbstractArray{T,N}, θ::AbstractArray{T,N}) where {T,N} = (x, θ)
 
+## GAUSSIAN NOISE
+
 # by default define a noise in the parameters
-GaussianNoise() = GaussianNoise(0.f0, 0.f0, 0.f0, 0f0)
-GaussianNoise(σ::T) where {T} = GaussianNoise(zeros(T, 3)..., σ)
-GaussianNoise(μ::T, σ::T) where {T} = GaussianNoise(zeros(T, 2)..., μ, σ)
+function _GaussianNoise(
+    μx::Union{T, AbstractVector{T}}, 
+    σx::Union{T, AbstractVector{T}}, 
+    μθ::Union{T, AbstractVector{T}}, 
+    σθ::Union{T, AbstractVector{T}}
+    ) where {T<:AbstractFloat}
+
+    μxp = (μx isa AbstractVector) ? μx : [μx]
+    σxp = (σx isa AbstractVector) ? σx : [σx]
+    μθp = (μθ isa AbstractVector) ? μθ : [μθ]
+    σθp = (σθ isa AbstractVector) ? σθ : [σθ]
+
+    GaussianNoise(μxp, σxp, μθp, σθp)
+end
+
+GaussianNoise() = _GaussianNoise(0f0, 0f0, 0f0, 0f0)
+GaussianNoise(σ::Union{T, AbstractVector{T}}) where {T<:AbstractFloat} = _GaussianNoise(zeros(T, 3)..., σ)
+GaussianNoise(μ::Union{T, AbstractVector{T}}, σ::Union{T, AbstractVector{T}}) where {T<:AbstractFloat} = _GaussianNoise(zeros(T, 2)..., μ, σ)
 
 function (f::GaussianNoise{T})(x::AbstractArray{T}, θ::AbstractArray{T}) where {T}
     return (x .+ muladd.(f.σx, randn(T, size(x)...), f.μx),  (θ .+ muladd.(f.σθ, randn(T, size(θ)...), f.μθ)))
 end
+
+## TRUNCATED GAUSSIAN NOISE
+
+struct TruncatedGaussianNoise{T, V<:AbstractVector{T}} <: NoiseGenerator{T}
+    
+    μx::V
+    σx::V
+    μθ::V
+    σθ::V
+
+    x_min::V
+    x_max::V
+    θ_min::V
+    θ_max::V
+
+end
+
+# by default define a noise in the parameters
+function _TruncatedGaussianNoise(
+    μx::Union{T, AbstractVector{T}}, 
+    σx::Union{T, AbstractVector{T}}, 
+    μθ::Union{T, AbstractVector{T}}, 
+    σθ::Union{T, AbstractVector{T}},
+    x_min::Union{T, AbstractVector{T}}, 
+    x_max::Union{T, AbstractVector{T}}, 
+    θ_min::Union{T, AbstractVector{T}}, 
+    θ_max::Union{T, AbstractVector{T}}
+    ) where {T<:AbstractFloat}
+
+    μxp = (μx isa AbstractVector) ? μx : [μx]
+    σxp = (σx isa AbstractVector) ? σx : [σx]
+    μθp = (μθ isa AbstractVector) ? μθ : [μθ]
+    σθp = (σθ isa AbstractVector) ? σθ : [σθ]
+
+    x_min_p = (x_min isa AbstractVector) ? x_min : [x_min]
+    x_max_p = (x_max isa AbstractVector) ? x_max : [x_max]
+    θ_min_p = (θ_min isa AbstractVector) ? θ_min : [θ_min]
+    θ_max_p = (θ_max isa AbstractVector) ? θ_max : [θ_max]
+
+    TruncatedGaussianNoise(μxp, σxp, μθp, σθp, x_min_p, x_max_p, θ_min_p, θ_max_p)
+end
+
+TruncatedGaussianNoise() = _TruncatedGaussianNoise(0f0, 0f0, 0f0, 0f0, -Inf32, Inf32, -Inf32, Inf32)
+TruncatedGaussianNoise(σ::Union{T, AbstractVector{T}}, min::Union{T, AbstractVector{T}}, max::Union{T, AbstractVector{T}}) where {T} = _TruncatedGaussianNoise(zeros(T, 3)..., σ, -T(Inf), T(Inf), min, max)
+
+function (f::TruncatedGaussianNoise{T})(x::AbstractArray{T}, θ::AbstractArray{T}) where {T}
+    
+    α_θ = (f.θ_min .- (f.μθ .+ θ)) ./ f.σθ
+    β_θ = (f.θ_max .- (f.μθ .+ θ)) ./ f.σθ
+    Φ_α_θ = (1 .+ SpecialFunctions.erf.(α_θ/sqrt(2)))/2
+    Φ_β_θ = (1 .+ SpecialFunctions.erf.(β_θ/sqrt(2)))/2
+
+    tθ = Random.rand(size(θ)...)
+    y = Φ_α_θ .* (1 .- tθ) .+ Φ_β_θ .* tθ
+    θ_new = (f.μθ .+ θ) .+ f.σθ .* sqrt(2) .* SpecialFunctions.erfinv.(2*y .- 1)
+
+
+    α_x = (f.x_min .- (f.μx .+ x)) ./ f.σx
+    β_x = (f.x_max .- (f.μx .+ x)) ./ f.σx
+    Φ_α_x = (1 .+ SpecialFunctions.erf.(α_x/sqrt(2)))/2
+    Φ_β_x = (1 .+ SpecialFunctions.erf.(β_x/sqrt(2)))/2
+
+    tx = Random.rand(size(x)...)
+    y = Φ_α_x .* (1 .- tx) .+ Φ_β_x .* tx
+    x_new = (f.μx .+ x) .+ f.σx .* sqrt(2) .* SpecialFunctions.erfinv.(2*y .- 1)
+
+    return (T.(x_new), T.(θ_new))
+end
+
+
+## RESAMPLE NOISE
 
 struct ResampledNoise{T<:AbstractFloat, A<:AbstractMatrix{T}} <: NoiseGenerator{T}
     noise_x::A

@@ -111,6 +111,8 @@ function Flow(
 
 end
 
+
+
 function Flow(
     model::FlowElement, 
     data::DataArrays{T}, 
@@ -125,8 +127,25 @@ function Flow(
 end
 
 
-Flow(base::Distribution{T}, model::FlowElement, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
-Flow(model::FlowElement, data::DataArrays{T}) where {T} = Flow(model, data, T[], T[]) 
+function Flow(
+    model::FlowElement{T,D}, 
+    conditioner::Conditioner{T,P,N},
+    train_loss::AbstractVector{T}, 
+    valid_loss::AbstractVector{T}
+    ) where {T,D,P,N}
+
+    @assert number_conditions(model) == N
+
+    base = StandardGaussianDistribution(T, D)
+    return Flow(base, model, conditioner, train_loss, valid_loss)
+
+end
+
+
+Flow(base::Distribution{T}, model::FlowElement{T}, data::DataArrays{T}) where {T} = Flow(base, model, data, T[], T[]) 
+Flow(model::FlowElement{T}, data::DataArrays{T}) where {T} = Flow(model, data, T[], T[]) 
+Flow(model::FlowElement{T}, conditioner::Conditioner{T}) where {T} = Flow(model, conditioner, T[], T[]) 
+Flow(base::Distribution{T}, model::FlowElement{T}, conditioner::Conditioner{T}) where {T} = Flow(base, model, conditioner, T[], T[]) 
 
 
 # define a predict function that is the same as the forward function
